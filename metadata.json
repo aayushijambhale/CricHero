@@ -1,0 +1,6 @@
+{
+  "name": "Cricket Broadcast Scoring System",
+  "description": "A professional cricket broadcast scoring control system and real-time GPU-rendered overlay for OBS streaming, styled with segment overlays and dynamic statistics panels.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -213,6 +213,12 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
   
   // Keep track of previous coordinates for animating changes
   const prevStateRef = useRef<MatchState | null>(null);
+  const latestStateRef = useRef<MatchState>(state);
+  
+  useEffect(() => {
+    latestStateRef.current = state;
+  }, [state]);
+
   const dynamicFieldsRef = useRef<{
     scoreText?: PIXI.Text;
     oversText?: PIXI.Text;
@@ -1130,7 +1136,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       dynamicFieldsRef.current.eventOverlayText = eventOverlayText;
 
       // Initial state sync render (styles and coordinates mapped)
-      updatePixiData(state);
+      updatePixiData(latestStateRef.current);
       } catch (err) {
         logError("Error in initPixi", err);
       }

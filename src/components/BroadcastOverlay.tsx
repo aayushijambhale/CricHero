@@ -69,6 +69,10 @@ export default function BroadcastOverlay({ initialState }: BroadcastOverlayProps
 
   const cleanMode = new URLSearchParams(window.location.search).get("clean") === "true";
   const finalShowGuide = showGuide && !cleanMode;
+  const hideStripForOverlay = Boolean(
+    matchState.activeProductionPanel?.visible &&
+    (matchState.activeProductionPanel?.data as any)?.hideMainStrip
+  );
 
   return (
     <div className="w-full h-screen relative overflow-hidden bg-transparent flex flex-col justify-between p-0 select-none font-sans">
@@ -131,7 +135,7 @@ export default function BroadcastOverlay({ initialState }: BroadcastOverlayProps
       {/* ────────────────────────────────────────────────────────
           GPU ACCELERATED METALLIC BROADCAST GRAPHICS STRIP
           ──────────────────────────────────────────────────────── */}
-      {matchState.overlayVisible !== false && matchState.scoreStripVisible !== false && (
+      {!hideStripForOverlay && (
         <div className="w-full max-w-[1920px] mx-auto flex justify-center items-end select-none pb-4">
           <PixiRenderer state={matchState} />
         </div>
@@ -153,6 +157,18 @@ function ProductionPanelOverlay({ panel, state }: ProductionPanelOverlayProps) {
   const p2Color = state.secondaryColor || "#dc2626";
 
   switch (panel.type) {
+    case "batsmanStatsCard":
+      return <PlayerCardOverlay data={panel.data} primaryColor={p1Color} secondaryColor={p2Color} />;
+    case "wicketOverlay":
+      return <WicketOverlay data={panel.data} primaryColor={p1Color} secondaryColor={p2Color} />;
+    case "fallOfWicketCard":
+      return <FallOfWicketCardOverlay data={panel.data} primaryColor={p1Color} secondaryColor={p2Color} />;
+    case "bowlerSpell":
+      return <BowlerSpellOverlay data={panel.data} primaryColor={p1Color} secondaryColor={p2Color} />;
+    case "playerMilestone":
+      return <PlayerMilestoneOverlay data={panel.data} primaryColor={p1Color} secondaryColor={p2Color} />;
+    case "matchInfo":
+      return <MatchInfoOverlay data={panel.data} primaryColor={p1Color} secondaryColor={p2Color} />;
     case "playerCard":
       return <PlayerCardOverlay data={panel.data} primaryColor={p1Color} secondaryColor={p2Color} />;
     case "partnership":
@@ -178,6 +194,105 @@ function ProductionPanelOverlay({ panel, state }: ProductionPanelOverlayProps) {
     default:
       return null;
   }
+}
+
+function WicketOverlay({ data, primaryColor, secondaryColor }: any) {
+  return (
+    <div className="animate-scale-in w-[840px] bg-slate-950/95 border-2 border-red-600 rounded-2xl p-8 shadow-2xl backdrop-blur-md">
+      <div className="text-5xl font-black tracking-widest text-red-500 mb-4">OUT!</div>
+      <div className="grid grid-cols-2 gap-4 text-white">
+        <div>
+          <div className="text-xs text-slate-400 uppercase">Batsman</div>
+          <div className="text-2xl font-black" style={{ color: secondaryColor }}>{data?.batsmanName || "BATSMAN"}</div>
+          <div className="text-lg font-bold mt-1">{data?.score || "0 (0)"}</div>
+        </div>
+        <div>
+          <div className="text-xs text-slate-400 uppercase">Dismissal</div>
+          <div className="text-xl font-black" style={{ color: primaryColor }}>{String(data?.dismissal || "OUT").toUpperCase()}</div>
+          <div className="text-sm text-slate-300 mt-1">b {data?.bowler || "BOWLER"}</div>
+          <div className="text-sm text-slate-500 mt-1">{data?.scoreAtWicket || "-"}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FallOfWicketCardOverlay({ data, primaryColor, secondaryColor }: any) {
+  return (
+    <div className="animate-slide-up w-[760px] bg-slate-950/95 border border-slate-700 rounded-xl p-6 shadow-2xl backdrop-blur-md">
+      <div className="text-xs uppercase tracking-widest text-slate-400 mb-3">Fall Of Wicket</div>
+      <div className="grid grid-cols-4 gap-3 text-center">
+        <div className="bg-slate-900/70 border border-slate-700 rounded p-3">
+          <div className="text-[10px] text-slate-500 uppercase">Score</div>
+          <div className="text-xl font-black" style={{ color: primaryColor }}>{data?.scoreAtWicket || "-"}</div>
+        </div>
+        <div className="bg-slate-900/70 border border-slate-700 rounded p-3">
+          <div className="text-[10px] text-slate-500 uppercase">Over</div>
+          <div className="text-xl font-black text-white">{data?.over || "-"}</div>
+        </div>
+        <div className="bg-slate-900/70 border border-slate-700 rounded p-3">
+          <div className="text-[10px] text-slate-500 uppercase">Partnership</div>
+          <div className="text-xl font-black" style={{ color: secondaryColor }}>{data?.partnershipBroken || "-"}</div>
+        </div>
+        <div className="bg-slate-900/70 border border-slate-700 rounded p-3">
+          <div className="text-[10px] text-slate-500 uppercase">Impact</div>
+          <div className="text-xl font-black text-amber-400">{data?.impact || "-"}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BowlerSpellOverlay({ data, primaryColor }: any) {
+  return (
+    <div className="animate-scale-in w-[680px] bg-slate-950/95 border-l-8 rounded-xl p-5 shadow-2xl backdrop-blur-md" style={{ borderColor: primaryColor }}>
+      <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Bowler Spell</div>
+      <div className="flex items-center justify-between">
+        <div className="text-2xl font-black text-white uppercase">{data?.name || "BOWLER"}</div>
+        <div className="grid grid-cols-5 gap-2 text-center">
+          <StatCell label="O" value={data?.overs ?? "0.0"} />
+          <StatCell label="M" value={data?.maidens ?? 0} />
+          <StatCell label="R" value={data?.runs ?? 0} />
+          <StatCell label="W" value={data?.wickets ?? 0} />
+          <StatCell label="Econ" value={Number(data?.economy ?? 0).toFixed(2)} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlayerMilestoneOverlay({ data, secondaryColor }: any) {
+  return (
+    <div className="animate-scale-in w-[760px] bg-slate-950/95 border-2 border-amber-500 rounded-2xl p-8 shadow-2xl backdrop-blur-md text-center">
+      <div className="text-xs uppercase tracking-widest text-amber-300">Player Milestone</div>
+      <div className="text-4xl font-black text-amber-400 mt-2">{data?.milestone || "MILESTONE"}</div>
+      <div className="text-2xl font-black mt-2" style={{ color: secondaryColor }}>{data?.player || "BATSMAN"}</div>
+      <div className="text-lg text-slate-200 mt-1">{data?.runs ?? 0} ({data?.balls ?? 0})</div>
+    </div>
+  );
+}
+
+function MatchInfoOverlay({ data, primaryColor, secondaryColor }: any) {
+  return (
+    <div className="animate-slide-up w-[760px] bg-slate-950/95 border border-slate-700 rounded-xl p-6 shadow-2xl backdrop-blur-md">
+      <div className="text-xs uppercase tracking-widest text-slate-400 mb-3">Match Information</div>
+      <div className="grid grid-cols-4 gap-3">
+        <StatCell label="CRR" value={Number(data?.currentRunRate ?? 0).toFixed(2)} color={primaryColor} />
+        <StatCell label="RRR" value={data?.requiredRunRate ? Number(data.requiredRunRate).toFixed(2) : "-"} color={secondaryColor} />
+        <StatCell label="Win %" value={`${Math.round(data?.winProbability?.battingTeam ?? 50)}%`} color="#fbbf24" />
+        <StatCell label="Projected" value={Math.round(data?.projectedScore ?? 0)} color="#22d3ee" />
+      </div>
+    </div>
+  );
+}
+
+function StatCell({ label, value, color }: { label: string; value: string | number; color?: string }) {
+  return (
+    <div className="bg-slate-900/70 border border-slate-700 rounded p-3 text-center">
+      <div className="text-[10px] text-slate-500 uppercase">{label}</div>
+      <div className="text-lg font-black" style={{ color: color || "#fff" }}>{value}</div>
+    </div>
+  );
 }
 
 /* 1. Player Card */

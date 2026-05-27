@@ -342,6 +342,12 @@ export interface MomentumState {
 // ─────────────────────────────────────────────────────────────
 
 export type ProductionPanelType =
+  | "batsmanStatsCard"
+  | "wicketOverlay"
+  | "fallOfWicketCard"
+  | "bowlerSpell"
+  | "playerMilestone"
+  | "matchInfo"
   | "playerCard"
   | "partnership"
   | "requiredEquation"
@@ -364,6 +370,40 @@ export interface ProductionPanel {
   data: unknown;
   displayDuration: number;
   priority: number;
+  timestamp: number;
+}
+
+export interface PlayerStats {
+  runs: number;
+  balls: number;
+  fours: number;
+  sixes: number;
+  strikeRate: number;
+  overs: number;
+  maidens: number;
+  wickets: number;
+  economy: number;
+}
+
+export interface PlayerProfile {
+  id: string;
+  name: string;
+  shortName: string;
+  role: "batsman" | "bowler" | "allrounder" | "wicketkeeper";
+  battingStyle: string;
+  bowlingStyle: string;
+  jerseyNumber: number;
+  image?: string;
+  isCaptain?: boolean;
+  isWicketkeeper?: boolean;
+  isDismissed?: boolean;
+  stats: PlayerStats;
+}
+
+export interface MatchEventLog {
+  id: string;
+  type: "run" | "wicket" | "boundary" | "milestone" | "commentary" | "over";
+  text: string;
   timestamp: number;
 }
 
@@ -486,6 +526,28 @@ export interface MatchState {
   overlayTheme?: "neon" | "classic" | "minimal";
   stripStyle?: "modern" | "clean";
   animationSpeed?: "slow" | "normal" | "fast";
+  gradientStyle?: "linear" | "radial" | "split";
+  stripTransparency?: number;
+  glowIntensity?: number;
+  borderRadius?: number;
+  shadowDepth?: number;
+  fontSelector?: "Bebas Neue" | "Rajdhani" | "Orbitron";
+  stripLayoutSelector?: "classic" | "compact" | "extended";
+
+  // ── Player manager ──
+  teamAPlayers?: PlayerProfile[];
+  teamBPlayers?: PlayerProfile[];
+  teamABattingOrder?: string[];
+  teamBBattingOrder?: string[];
+  activePlayerIds?: {
+    strikerId?: string;
+    nonStrikerId?: string;
+    bowlerId?: string;
+  };
+  dismissedPlayerIds?: string[];
+  recentPlayerIds?: string[];
+  lastUsedPlayerIds?: string[];
+  matchEventLog?: MatchEventLog[];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -613,5 +675,21 @@ export function createDefaultMatchState(): MatchState {
     fourBoundaryText: "★ BOUNDARY FOUR ★",
     overlayVisible: true,
     scoreStripVisible: true,
+    gradientStyle: "linear",
+    stripTransparency: 1,
+    glowIntensity: 0.75,
+    borderRadius: 8,
+    shadowDepth: 0.6,
+    fontSelector: "Bebas Neue",
+    stripLayoutSelector: "classic",
+    teamAPlayers: [],
+    teamBPlayers: [],
+    teamABattingOrder: [],
+    teamBBattingOrder: [],
+    activePlayerIds: {},
+    dismissedPlayerIds: [],
+    recentPlayerIds: [],
+    lastUsedPlayerIds: [],
+    matchEventLog: [],
   };
 }

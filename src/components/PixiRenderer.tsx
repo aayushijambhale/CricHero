@@ -57,48 +57,20 @@ function createGradientTexture(colors: string[], w: number, h: number): PIXI.Tex
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (ctx) {
-    // 1. Base Linear Gradient (Horizontal)
+    // Flat clean panel gradient (no gloss/scanline overlays)
     const grad = ctx.createLinearGradient(0, 0, w, 0);
     colors.forEach((color, index) => {
       grad.addColorStop(index / (colors.length - 1), color);
     });
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
-
-    // 2. Premium TATA IPL 3D vertical gloss shine & bottom shadow
-    const verticalShine = ctx.createLinearGradient(0, 0, 0, h);
-    verticalShine.addColorStop(0, "rgba(255, 255, 255, 0.22)"); // Dynamic metallic gloss top
-    verticalShine.addColorStop(0.12, "rgba(255, 255, 255, 0.08)");
-    verticalShine.addColorStop(0.5, "rgba(0, 0, 0, 0)");
-    verticalShine.addColorStop(0.85, "rgba(0, 0, 0, 0.15)");
-    verticalShine.addColorStop(1, "rgba(0, 0, 0, 0.45)"); // Deep 3D shadow bottom
-    ctx.fillStyle = verticalShine;
-    ctx.fillRect(0, 0, w, h);
-
-    // 3. Premium TV Broadcast Diagonal Scanlines (Carbon Fiber/Grill look)
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.14)";
-    ctx.lineWidth = 1;
-    const spacing = 6;
-    for (let x = -h; x < w; x += spacing) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x + h, h);
-      ctx.stroke();
-    }
-
-    // 4. Subtle Gloss highlight overlays (left-to-right glow sweep)
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 1);
-    ctx.lineTo(w, 1); // 1px light border highlight at the very top
-    ctx.stroke();
   }
   return PIXI.Texture.from(canvas);
 }
 
-function drawGlowBarLive(glow: PIXI.Graphics, x: number, h: number, colors: number[]) {
+function drawGlowBarLive(glow: PIXI.Graphics, x: number, h: number, colors: number[], intensity: number = 1) {
   glow.clear();
+  const safeIntensity = Math.max(0, Math.min(1, intensity));
   
   // 1. Hot white thin line
   glow.stroke({ color: 0xffffff, width: 2.2, alignment: 0.5 });
@@ -107,12 +79,12 @@ function drawGlowBarLive(glow: PIXI.Graphics, x: number, h: number, colors: numb
   glow.stroke();
   
   // 2. Linear Bloom (staged bloom glow indices)
-  glow.stroke({ color: colors[0], width: 7, alignment: 0.5, alpha: 0.35 });
+  glow.stroke({ color: colors[0], width: 7, alignment: 0.5, alpha: 0.35 * safeIntensity });
   glow.moveTo(x, 0);
   glow.lineTo(x, h);
   glow.stroke();
   
-  glow.stroke({ color: colors[1] || colors[0], width: 16, alignment: 0.5, alpha: 0.16 });
+  glow.stroke({ color: colors[1] || colors[0], width: 16, alignment: 0.5, alpha: 0.16 * safeIntensity });
   glow.moveTo(x, 0);
   glow.lineTo(x, h);
   glow.stroke();
@@ -322,26 +294,16 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
 
       
       const width = 1920;
-      const height = 150;
+      const height = 220;
 
       const newApp = new PIXI.Application();
-      
-      // Safeguard: define dummy _cancelResize
-      (newApp as any)._cancelResize = () => {};
 
-      try {
-        await newApp.init({
-          width: width,
-          height: height,
-          backgroundAlpha: 0, // Transparent background for video overlay
-          antialias: true,
-          resolution: window.devicePixelRatio || 1,
-          autoDensity: true,
-        });
-      } catch (err) {
-        console.error("PIXI application initialization failed", err);
-        return;
-      }
+      await newApp.init({
+        width,
+        height,
+        backgroundAlpha: 0,
+        antialias: true,
+      });
 
       // Wait for font loading with timeout fallback
       if (document.fonts) {
@@ -376,6 +338,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       // Root container with slight y-offset
       const stripContainer = new PIXI.Container();
       stripContainer.y = 20;
+      stripContainer.alpha = latestStateRef.current.stripTransparency ?? 1;
       app.stage.addChild(stripContainer);
       dynamicFieldsRef.current.stripContainer = stripContainer;
 
@@ -422,12 +385,9 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
         pContainer.addChild(sprite);
         pContainer.addChild(mask);
         
-        // 3. Crisp outer border alignment (rectangular)
+        // 3. Border layer kept for compatibility, but intentionally not drawn
         const border = new PIXI.Graphics();
-        border.stroke({ color: strokeColor, width: strokeWidth, alignment: 1 });
-        border.rect(xStart, 0, xEnd - xStart, 85);
-        border.stroke();
-        
+
         pContainer.addChild(border);
         stripContainer.addChild(pContainer);
         return { container: pContainer, sprite, border };
@@ -502,8 +462,8 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       stripContainer.addChild(glowBar1);
       stripContainer.addChild(glowBar2);
       
-      drawGlowBarLive(glowBar1, 1280, 85, [0xffffff, 0xc084fc]);
-      drawGlowBarLive(glowBar2, 1650, 85, [0xffffff, 0xc084fc]);
+      drawGlowBarLive(glowBar1, 1280, 85, [0xffffff, 0xc084fc], latestStateRef.current.glowIntensity ?? 0.75);
+      drawGlowBarLive(glowBar2, 1650, 85, [0xffffff, 0xc084fc], latestStateRef.current.glowIntensity ?? 0.75);
       
       dynamicFieldsRef.current.glowBar1 = glowBar1;
       dynamicFieldsRef.current.glowBar2 = glowBar2;
@@ -1138,7 +1098,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       // Initial state sync render (styles and coordinates mapped)
       updatePixiData(latestStateRef.current);
       } catch (err) {
-        logError("Error in initPixi", err);
+        console.error("Error in initPixi", err);
       }
     }
 
@@ -1219,10 +1179,14 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     const fields = dynamicFieldsRef.current;
     if (!fields) return;
 
-    const primaryColor = s.primaryColor || "#1d4ed8";
-    const secondaryColor = s.secondaryColor || "#581c87";
+    const primaryColor = s.primaryColor || "#1d4ed8";   // Team 1
+    const secondaryColor = s.secondaryColor || "#581c87"; // Team 2
     const glowColor = s.glowColor || "#c084fc";
     const accentTextColor = s.accentTextColor || "#fbbf24";
+    const gradientStyle = s.gradientStyle || "linear";
+    const fontSelector = s.fontSelector || "Bebas Neue";
+    const glowIntensity = s.glowIntensity ?? 0.75;
+    const stripTransparency = s.stripTransparency ?? 1;
 
     const primNum = hexStringToNumber(primaryColor, 0x1d4ed8);
     const secNum = hexStringToNumber(secondaryColor, 0x581c87);
@@ -1231,11 +1195,39 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
 
     // 1. Redraw glowing neon bars live
     if (fields.glowBar1) {
-      drawGlowBarLive(fields.glowBar1, 1280, 85, [0xffffff, glowNum]);
+      drawGlowBarLive(fields.glowBar1, 1280, 85, [0xffffff, glowNum], glowIntensity);
     }
     if (fields.glowBar2) {
-      drawGlowBarLive(fields.glowBar2, 1650, 85, [0xffffff, glowNum]);
+      drawGlowBarLive(fields.glowBar2, 1650, 85, [0xffffff, glowNum], glowIntensity);
     }
+
+    if (fields.stripContainer) {
+      gsap.to(fields.stripContainer, {
+        alpha: stripTransparency,
+        duration: 0.35,
+        ease: "power2.out",
+      });
+    }
+
+    const buildGradient = (main: string, darkTarget: string, tail: string, width: number) => {
+      if (gradientStyle === "radial") {
+        return createGradientTexture([blendHexColors(main, "#ffffff", 0.08), main, darkTarget], width, 85);
+      }
+      if (gradientStyle === "split") {
+        return createGradientTexture([main, main, darkTarget], width, 85);
+      }
+      return createGradientTexture([main, darkTarget, tail], width, 85);
+    };
+
+    const buildGradientReversed = (main: string, darkTarget: string, tail: string, width: number) => {
+      if (gradientStyle === "radial") {
+        return createGradientTexture([darkTarget, main, blendHexColors(main, "#ffffff", 0.08)], width, 85);
+      }
+      if (gradientStyle === "split") {
+        return createGradientTexture([darkTarget, main, main], width, 85);
+      }
+      return createGradientTexture([tail, darkTarget, main], width, 85);
+    };
 
     // 2. Refresh Edge Highlight stripe on far-left
     if (fields.edgeHighlight) {
@@ -1245,14 +1237,16 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       fields.edgeHighlight.fill();
     }
 
-    // 3. Generate new gradient step textures with premium broadcast look!
-    const battingTexture = createGradientTexture([primaryColor, blendHexColors(primaryColor, "#000000", 0.55), "#070b15"], 1080, 85);
+    // 3. Generate team-specific textures so left/right can switch by innings.
+    const team1Texture = buildGradient(primaryColor, blendHexColors(primaryColor, "#000000", 0.55), "#070b15", 1080);
+    const team2Texture = buildGradient(secondaryColor, blendHexColors(secondaryColor, "#000000", 0.55), "#070b15", 1080);
     const batsmanTexture = createGradientTexture(["#070d1a", "#03050b"], 530, 85);
     const darkInfoTexture = createGradientTexture(["#070b14", "#020306"], 200, 85);
     const purpleInfoTexture = createGradientTexture([secondaryColor, blendHexColors(secondaryColor, "#000000", 0.55), "#0a0515"], 200, 85);
     const bowlerTexture = createGradientTexture(["#070b14", "#020306"], 370, 85);
     const purpleChaseTexture = createGradientTexture(["#0a0515", blendHexColors(secondaryColor, "#000000", 0.55), secondaryColor], 370, 85); // reversed gradient!
-    const bowlingTexture = createGradientTexture(["#0a0515", blendHexColors(secondaryColor, "#000000", 0.55), secondaryColor], 640, 85); // reversed gradient!
+    const team1RightTexture = buildGradientReversed(primaryColor, blendHexColors(primaryColor, "#000000", 0.55), "#070b15", 640);
+    const team2RightTexture = buildGradientReversed(secondaryColor, blendHexColors(secondaryColor, "#000000", 0.55), "#0a0515", 640);
 
     const assignTex = (sprite: PIXI.Sprite | undefined, tex: PIXI.Texture) => {
       if (!sprite) return;
@@ -1267,15 +1261,15 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       }
     };
 
-    assignTex(fields.p1NasirBgSprite, battingTexture);
-    assignTex(fields.p1FalakBgSprite, battingTexture); // Both sprites get dynamic batting jersey color!
+    assignTex(fields.p1NasirBgSprite, team1Texture);
+    assignTex(fields.p1FalakBgSprite, team2Texture);
     assignTex(fields.p2BgSprite, batsmanTexture);
     assignTex(fields.p3SlateBgSprite, darkInfoTexture);
     assignTex(fields.p3PurpleBgSprite, purpleInfoTexture);
     assignTex(fields.p4BowlerBgSprite, bowlerTexture);
     assignTex(fields.p4ChaseBgSprite, purpleChaseTexture);
-    assignTex(fields.p5FalakBgSprite, bowlingTexture); // Both sprites get dynamic bowling jersey color!
-    assignTex(fields.p5NasirBgSprite, bowlingTexture);
+    assignTex(fields.p5FalakBgSprite, team1RightTexture);
+    assignTex(fields.p5NasirBgSprite, team2RightTexture);
 
     // 4. Redraw Crisp Geometrical rectangular borders (Disabled for seamless layout)
     const redrawBorder = (border: PIXI.Graphics | undefined, xStart: number, xEnd: number, color: number, strokeWidth: number = 1.5) => {
@@ -1285,25 +1279,20 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     };
 
     redrawBorder(fields.p1NasirBgBorder, 0, 1080, primNum, 2);
-    redrawBorder(fields.p1FalakBgBorder, 0, 1080, primNum, 2); // Dynamic border!
+    redrawBorder(fields.p1FalakBgBorder, 0, 1080, secNum, 2);
     redrawBorder(fields.p2BgBorder, 550, 1080, blendStringToNumber(primaryColor, 0x1e3a8a, 0.45), 1.5);
     redrawBorder(fields.p3SlateBgBorder, 1080, 1280, 0x334155, 1.5);
     redrawBorder(fields.p3PurpleBgBorder, 1080, 1280, secNum, 2);
     redrawBorder(fields.p4BowlerBgBorder, 1280, 1650, 0x334155, 1.5);
     redrawBorder(fields.p4ChaseBgBorder, 1280, 1650, secNum, 2);
-    redrawBorder(fields.p5FalakBgBorder, 1280, 1920, secNum, 2); // Dynamic border!
+    redrawBorder(fields.p5FalakBgBorder, 1280, 1920, primNum, 2);
     redrawBorder(fields.p5NasirBgBorder, 1280, 1920, secNum, 2);
 
     // 4b. Draw Unified Outer Border and Separators
     if (fields.unifiedBorder) {
       fields.unifiedBorder.clear();
-      
-      // Draw outer border (1.2px gold/amber outline with 0.35 opacity)
-      fields.unifiedBorder.stroke({ color: 0xfbbf24, width: 1.2, alpha: 0.35 });
-      fields.unifiedBorder.rect(0, 0, 1920, 85);
-      fields.unifiedBorder.stroke();
-      
-      // Draw thin vertical separator lines (1px white divider with 0.18 opacity)
+
+      // Keep only vertical separators for a flatter clean strip.
       fields.unifiedBorder.stroke({ color: 0xffffff, width: 1.0, alpha: 0.18 });
       const dividers = [550, 1080, 1280, 1650];
       dividers.forEach(x => {
@@ -1323,6 +1312,17 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     applyTextFill(fields.batsman2Runs, s.batsman2.isStriker ? accentNum : 0xffffff);
     applyTextFill(fields.infoValueText, accentNum);
     applyTextFill(fields.bowlerFigures, accentNum);
+
+    const applyFontFamily = (text: PIXI.Text | undefined) => {
+      if (text) text.style.fontFamily = fontSelector;
+    };
+
+    applyFontFamily(fields.scoreText);
+    applyFontFamily(fields.teamNameText);
+    applyFontFamily(fields.tournamentText);
+    applyFontFamily(fields.bowlerName);
+    applyFontFamily(fields.infoTitleText);
+    applyFontFamily(fields.infoValueText);
   }
 
   function updatePixiData(s: MatchState) {
@@ -1336,7 +1336,18 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
         prev.primaryColor !== s.primaryColor || 
         prev.secondaryColor !== s.secondaryColor ||
         prev.glowColor !== s.glowColor ||
-        prev.accentTextColor !== s.accentTextColor;
+        prev.accentTextColor !== s.accentTextColor ||
+        prev.currentInnings !== s.currentInnings ||
+        prev.gradientStyle !== s.gradientStyle ||
+        prev.stripTransparency !== s.stripTransparency ||
+        prev.glowIntensity !== s.glowIntensity ||
+        prev.borderRadius !== s.borderRadius ||
+        prev.shadowDepth !== s.shadowDepth ||
+        prev.fontSelector !== s.fontSelector ||
+        prev.stripLayoutSelector !== s.stripLayoutSelector ||
+        prev.animationSpeed !== s.animationSpeed ||
+        prev.overlayTheme !== s.overlayTheme ||
+        prev.stripStyle !== s.stripStyle;
 
       if (colorsChanged) {
         refreshStyles(s);
@@ -1345,15 +1356,15 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       const battingTeamName = s.currentInnings === 1 ? (s.config?.team1 || "Team A") : (s.config?.team2 || "Team B");
       const bowlingTeamName = s.currentInnings === 1 ? (s.config?.team2 || "Team B") : (s.config?.team1 || "Team A");
 
-      const isNasirBatting = battingTeamName.toUpperCase().includes("NASIR");
-    const isNasirBowling = bowlingTeamName.toUpperCase().includes("NASIR");
+      const isTeam1Batting = s.currentInnings === 1;
+      const isTeam1Bowling = !isTeam1Batting;
     
     const isChaseActive = s.currentInnings === 2 && s.target !== null;
     const secondInningsLayout = s.secondInningsLayout || "combined";
 
     // Toggle panel background visibilities depending on Active Innings Layout
-    if (fields.p1NasirBg) fields.p1NasirBg.visible = isNasirBatting;
-    if (fields.p1FalakBg) fields.p1FalakBg.visible = !isNasirBatting;
+    if (fields.p1NasirBg) fields.p1NasirBg.visible = isTeam1Batting;
+    if (fields.p1FalakBg) fields.p1FalakBg.visible = !isTeam1Batting;
 
     // Panel 3 is purple during active chase (2nd Innings Target mode), slate during normal innings
     if (fields.p3SlateBg) fields.p3SlateBg.visible = !isChaseActive;
@@ -1367,8 +1378,8 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     // if (fields.p4BowlerBg) fields.p4BowlerBg.visible = showBowlerState;
     // if (fields.p4ChaseBg) fields.p4ChaseBg.visible = !showBowlerState;
 
-    if (fields.p5FalakBg) fields.p5FalakBg.visible = !isNasirBowling;
-    if (fields.p5NasirBg) fields.p5NasirBg.visible = isNasirBowling;
+    if (fields.p5FalakBg) fields.p5FalakBg.visible = isTeam1Bowling;
+    if (fields.p5NasirBg) fields.p5NasirBg.visible = !isTeam1Bowling;
 
     // Toggle graphical text overlays
     if (fields.p4BowlerContainer) fields.p4BowlerContainer.visible = showBowlerState;
@@ -1381,8 +1392,17 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     // ────────────────────────────────────────────────────────
     // DYNAMIC circular team emblems and sunburst radiating gold rays
     // ────────────────────────────────────────────────────────
-    const primNum = hexStringToNumber(s.primaryColor || "#1d4ed8", 0x1d4ed8);
-    const secNum = hexStringToNumber(s.secondaryColor || "#dc2626", 0xdc2626);
+    const team1Num = hexStringToNumber(s.primaryColor || "#1d4ed8", 0x1d4ed8);
+    const team2Num = hexStringToNumber(s.secondaryColor || "#dc2626", 0xdc2626);
+    const battingNum = isTeam1Batting ? team1Num : team2Num;
+    const bowlingNum = isTeam1Batting ? team2Num : team1Num;
+
+    if (fields.edgeHighlight) {
+      fields.edgeHighlight.clear();
+      fields.edgeHighlight.fill({ color: battingNum });
+      fields.edgeHighlight.rect(0, 0, 6, 85);
+      fields.edgeHighlight.fill();
+    }
 
     // Left team logo circle and rays
     if (fields.leftLogoSunburst && fields.leftLogoCircle && fields.leftLogoText) {
@@ -1393,12 +1413,12 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       // 1. Tight gold cogwheel rim (36 tick ridges)
       // AI Sunburst tinting (matches primary team color for aesthetic blend)
       if (fields.leftLogoSunburst) {
-        fields.leftLogoSunburst.tint = primNum;
+        fields.leftLogoSunburst.tint = battingNum;
       }
 
       // 2. Filled circle and golden ring border
       fields.leftLogoCircle.clear();
-      fields.leftLogoCircle.fill({ color: primNum });
+      fields.leftLogoCircle.fill({ color: battingNum });
       fields.leftLogoCircle.drawCircle(cx, cy, r);
       fields.leftLogoCircle.fill();
       fields.leftLogoCircle.stroke({ color: 0xfbbf24, width: 2, alignment: 0.5 });
@@ -1434,12 +1454,12 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       // 1. Tight gold cogwheel rim (36 tick ridges)
       // AI Sunburst tinting (matches secondary team color)
       if (fields.rightLogoSunburst) {
-        fields.rightLogoSunburst.tint = secNum;
+        fields.rightLogoSunburst.tint = bowlingNum;
       }
 
       // 2. Filled circle and golden ring border
       fields.rightLogoCircle.clear();
-      fields.rightLogoCircle.fill({ color: secNum });
+      fields.rightLogoCircle.fill({ color: bowlingNum });
       fields.rightLogoCircle.drawCircle(cx, cy, r);
       fields.rightLogoCircle.fill();
       fields.rightLogoCircle.stroke({ color: 0xfbbf24, width: 2, alignment: 0.5 });
@@ -1573,7 +1593,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     // ────────────────────────────────────────────────────────
     const batsman1 = s.batsman1 || { name: "BATSMAN 1", runs: 0, balls: 0, isStriker: true };
     const batsman2 = s.batsman2 || { name: "BATSMAN 2", runs: 0, balls: 0, isStriker: false };
-    const bowler = s.bowler || { name: "BOWLER", runs: 0, wickets: 0, oversBowled: [], currentOverRuns: 0 };
+    const bowler = s.bowler || { name: "BOWLER", runs: 0, wickets: 0, balls: 0, oversBowled: [], currentOverRuns: 0 };
 
     if (fields.batsman1Name) {
       fields.batsman1Name.text = batsman1.name.toUpperCase();
@@ -1796,7 +1816,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     // Store state in ref
     prevStateRef.current = JSON.parse(JSON.stringify(s));
     } catch (err) {
-      logError("Error in updatePixiData", err);
+      console.error("Error in updatePixiData", err);
     }
   }
 
@@ -1905,19 +1925,10 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
 
   return (
     <div className="w-full relative select-none">
-      <div className="absolute top-0 left-0 bg-green-900 text-white p-2 z-50 text-xs w-full text-center font-bold">
-        PIXI RENDERER COMPONENT MOUNTED. IF YOU SEE THIS, REACT WORKS.
-      </div>
-      {debugLog.length > 0 && (
-        <div className="absolute top-8 left-0 bg-red-900/90 text-white p-4 z-50 text-xs font-mono max-h-64 overflow-auto w-full">
-          <h3 className="font-bold mb-2 text-red-300">PIXI RENDERER ERROR</h3>
-          {debugLog.map((log, i) => <div key={i}>{log}</div>)}
-        </div>
-      )}
       <div 
         ref={containerRef} 
         className="w-full h-full relative" 
-        style={{ minHeight: "135px" }} 
+        style={{ minHeight: "220px" }} 
         id="pixi-graphics-canvas"
       />
     </div>

@@ -12,6 +12,10 @@ defaultInitialState.config.tossDecision = "bowl";
 defaultInitialState.config.format = "custom";
 defaultInitialState.config.team1ShortName = "FLK";
 defaultInitialState.config.team2ShortName = "NSR";
+defaultInitialState.config.team1Color = "#1d4ed8";
+defaultInitialState.config.team2Color = "#dc2626";
+defaultInitialState.primaryColor = "#1d4ed8";
+defaultInitialState.secondaryColor = "#dc2626";
 defaultInitialState.runs = 54;
 defaultInitialState.wickets = 6;
 defaultInitialState.balls = 31;
@@ -62,6 +66,11 @@ export default function App() {
         const res = await fetch("/api/match-state");
         const data = await res.json();
         if (data) {
+          data.config = data.config || {};
+          data.config.team1Color = data.config.team1Color || "#1d4ed8";
+          data.config.team2Color = data.config.team2Color || "#dc2626";
+          data.primaryColor = data.primaryColor || data.config.team1Color;
+          data.secondaryColor = data.secondaryColor || data.config.team2Color;
           setInitialData(data);
         }
       } catch (err) {

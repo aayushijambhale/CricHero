@@ -1,9 +1,9 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import { connectMongoose } from '../../src/db';
+import { connectMongoose } from '../../db';
 import { 
   Tournament, Match, Team, Player, Innings, Delivery, Batsman, Bowler 
-} from '../models';
+} from '../../models';
 
 dotenv.config();
 

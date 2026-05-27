@@ -164,16 +164,17 @@ export interface SuperOverState {
 // ─────────────────────────────────────────────────────────────
 
 export interface MatchConfig {
+  matchId?: string;
   team1: string;
+  team1ShortName?: string;
   team2: string;
+  team2ShortName?: string;
+  format: MatchFormat;
   totalOvers: number;
   tossWinner: string;
   tossDecision: "bat" | "bowl";
-  format: MatchFormat;
   team1Color: string;
   team2Color: string;
-  team1ShortName: string;
-  team2ShortName: string;
   powerplayOvers: number;
   maxWickets: number;
   /** Venue for DLS/metadata */
@@ -182,6 +183,8 @@ export interface MatchConfig {
   umpire1?: string;
   umpire2?: string;
   thirdUmpire?: string;
+  date?: string;
+  tournamentName?: string;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -480,6 +483,9 @@ export interface MatchState {
   fourBoundaryText?: string;
   overlayVisible?: boolean;
   scoreStripVisible?: boolean;
+  overlayTheme?: "neon" | "classic" | "minimal";
+  stripStyle?: "modern" | "clean";
+  animationSpeed?: "slow" | "normal" | "fast";
 }
 
 // ─────────────────────────────────────────────────────────────

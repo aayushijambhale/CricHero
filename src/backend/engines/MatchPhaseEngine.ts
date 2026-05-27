@@ -5,7 +5,7 @@
  * MatchPhaseEngine — Auto-detect current match phase and trigger visuals
  */
 
-import { MatchState, MatchPhase, PowerplayPhase } from "../types";
+import { MatchState, MatchPhase, PowerplayPhase } from "../../types";
 
 export interface PhaseConfig {
   phase: MatchPhase;

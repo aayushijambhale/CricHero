@@ -5,7 +5,7 @@
  * GraphicsController — Orchestrates production panel visibility and queue
  */
 
-import { ProductionPanel, ProductionPanelType } from "../types";
+import { ProductionPanel, ProductionPanelType } from "../../types";
 
 export class GraphicsController {
   private queue: ProductionPanel[] = [];

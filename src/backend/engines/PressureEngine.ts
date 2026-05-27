@@ -5,7 +5,7 @@
  * PressureEngine — Intelligent match-state pressure detection
  */
 
-import { MatchState, PressureState } from "../types";
+import { MatchState, PressureState } from "../../types";
 
 export class PressureEngine {
   /**

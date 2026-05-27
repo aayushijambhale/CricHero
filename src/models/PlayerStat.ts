@@ -105,4 +105,4 @@ PlayerStatSchema.index({ tournamentId: 1, playerName: 1 });
 PlayerStatSchema.index({ playerName: 1, matchDate: -1 });
 PlayerStatSchema.index({ team: 1, matchDate: -1 });
 
-export const PlayerStat = mongoose.model<IPlayerStat>("PlayerStat", PlayerStatSchema);
+export const PlayerStat = mongoose.models.PlayerStat || mongoose.model<IPlayerStat>("PlayerStat", PlayerStatSchema);

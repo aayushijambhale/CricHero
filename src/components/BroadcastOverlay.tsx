@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { MatchState, ProductionPanel } from "../types";
 import PixiRenderer from "./PixiRenderer";
 import { Tv, Copy, Check, X, Award, Flame, Star, ShieldAlert } from "lucide-react";
+import { io } from "socket.io-client";
 
 interface BroadcastOverlayProps {
   initialState: MatchState;
@@ -32,26 +33,31 @@ export default function BroadcastOverlay({ initialState }: BroadcastOverlayProps
     }
     loadCurrentState();
 
-    // 2. Setup Server-Sent Events Realtime Subscription
-    const sse = new EventSource("/api/events");
+    // 2. Setup Socket.IO Realtime Subscription
+    const socket = io();
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetMatchId = urlParams.get("matchId");
     
-    sse.onmessage = (e) => {
+    socket.on('dispatch', (eventData: any) => {
       try {
-        const parsed = JSON.parse(e.data);
-        if (parsed.event === "update" || parsed.event === "initial") {
-          setMatchState(parsed.data);
+        if (eventData.type === "update" || eventData.type === "initial") {
+          const newState = eventData.payload;
+          if (targetMatchId && newState.config?.matchId !== targetMatchId) {
+            return; // Ignore updates meant for other matches
+          }
+          setMatchState(newState);
         }
       } catch (err) {
-        console.error("Failed to parse realtime broadcast event", err);
+        console.error("Failed to parse Socket event", err);
       }
-    };
+    });
 
-    sse.onerror = (err) => {
-      console.warn("SSE connection interrupted. Re-connecting automatically...", err);
-    };
+    socket.on('connect_error', (err) => {
+      console.warn("Socket connection interrupted. Re-connecting automatically...", err);
+    });
 
     return () => {
-      sse.close();
+      socket.disconnect();
     };
   }, []);
 
@@ -83,7 +89,7 @@ export default function BroadcastOverlay({ initialState }: BroadcastOverlayProps
                 
                 <div className="mt-3 flex flex-col gap-1.5 text-[11px] text-slate-300 bg-slate-900/50 p-2 rounded border border-slate-800 font-mono">
                   <div>1. Add Source: Browser Source</div>
-                  <div>2. URL: <span className="text-amber-400">{window.location.href}?clean=true</span></div>
+                  <div>2. URL: <span className="text-amber-400">{window.location.href.includes("?") ? window.location.href + "&clean=true" : window.location.href + "?clean=true"}</span></div>
                   <div>3. Dimension: <span className="text-amber-400">1920 x 1080</span></div>
                   <div>4. Custom CSS: Set background to transparent.</div>
                 </div>

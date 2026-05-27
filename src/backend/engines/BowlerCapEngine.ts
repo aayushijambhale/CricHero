@@ -17,7 +17,7 @@
  * ICC Rule — No bowler may bowl two consecutive overs.
  */
 
-import { MatchFormat, MatchState } from "../types";
+import { MatchFormat, MatchState } from "../../types";
 
 export interface BowlerCapInfo {
   name: string;

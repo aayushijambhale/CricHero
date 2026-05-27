@@ -5,7 +5,7 @@
  * MomentumEngine — Tracks batting/bowling momentum and streaks
  */
 
-import { MatchState, MomentumState } from "../types";
+import { MatchState, MomentumState } from "../../types";
 
 export class MomentumEngine {
   /**

@@ -41,7 +41,7 @@ import {
   InningsSummary,
   Extras,
   PartnershipData,
-} from "../types";
+} from "../../types";
 import { RuleValidator } from "./RuleValidator";
 import { BowlerCapEngine } from "./BowlerCapEngine";
 import { MatchPhaseEngine } from "./MatchPhaseEngine";

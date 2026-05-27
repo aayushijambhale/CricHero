@@ -15,7 +15,7 @@
  * ICC dataset. This Standard Edition is accurate for broadcast display.
  */
 
-import { DLSData, MatchState } from "../types";
+import { DLSData, MatchState } from "../../types";
 
 // ─────────────────────────────────────────────────────────────
 // DLS Resource Table (Standard Edition)

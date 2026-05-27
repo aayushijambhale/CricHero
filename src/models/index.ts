@@ -74,6 +74,7 @@ const MatchSchema = new Schema({
   projectedScore: { type: Number, default: 0 },
   result: { type: String },
   status: { type: String, required: true, enum: ['scheduled', 'live', 'completed', 'abandoned'], default: 'scheduled' },
+  matchStateSnapshot: { type: Schema.Types.Mixed },
 }, { timestamps: true });
 
 // 3. Teams

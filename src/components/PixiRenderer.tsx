@@ -311,7 +311,9 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     let isDestroyed = false;
 
     async function initPixi() {
-      if (!containerRef.current) return;
+      try {
+        if (!containerRef.current) return;
+
       
       const width = 1920;
       const height = 150;
@@ -333,6 +335,18 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       } catch (err) {
         console.error("PIXI application initialization failed", err);
         return;
+      }
+
+      // Wait for font loading with timeout fallback
+      if (document.fonts) {
+        try {
+          await Promise.race([
+            document.fonts.ready,
+            new Promise(resolve => setTimeout(resolve, 500))
+          ]);
+        } catch (e) {
+          // ignore timeout
+        }
       }
 
       if (isDestroyed) {
@@ -1117,6 +1131,9 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
 
       // Initial state sync render (styles and coordinates mapped)
       updatePixiData(state);
+      } catch (err) {
+        logError("Error in initPixi", err);
+      }
     }
 
     initPixi();
@@ -1173,19 +1190,19 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     }
     
     if (s.currentInnings === 2 && s.target) {
-      const remainingBalls = (s.config.totalOvers * 6) - s.balls;
+      const remainingBalls = ((s.config?.totalOvers || 20) * 6) - s.balls;
       const runsNeeded = s.target - s.runs;
       if (runsNeeded <= 0) {
-        return `${s.config.team2.toUpperCase()} WON THE MATCH!`;
+        return `${(s.config?.team2 || "TEAM 2").toUpperCase()} WON THE MATCH!`;
       }
       if (remainingBalls <= 0) {
-        return `${s.config.team1.toUpperCase()} WON THE MATCH!`;
+        return `${(s.config?.team1 || "TEAM 1").toUpperCase()} WON THE MATCH!`;
       }
       return `NEED ${runsNeeded} RUNS FROM ${remainingBalls} BALLS`;
     }
 
     // Toss fallback
-    const tossText = `${s.config.tossWinner} WON THE TOSS & DECIDED TO ${s.config.tossDecision === "bat" ? "BAT" : "BOWL"}`;
+    const tossText = `${s.config?.tossWinner || "TEAM"} WON THE TOSS & DECIDED TO ${(s.config?.tossDecision || "bat") === "bat" ? "BAT" : "BOWL"}`;
     return tossText.toUpperCase();
   }
 
@@ -1303,25 +1320,26 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
   }
 
   function updatePixiData(s: MatchState) {
-    const fields = dynamicFieldsRef.current;
-    if (!fields) return;
+    try {
+      const fields = dynamicFieldsRef.current;
+      if (!fields) return;
 
-    // Trigger dyn color reload if values altered
-    const prev = prevStateRef.current;
-    const colorsChanged = !prev || 
-      prev.primaryColor !== s.primaryColor || 
-      prev.secondaryColor !== s.secondaryColor ||
-      prev.glowColor !== s.glowColor ||
-      prev.accentTextColor !== s.accentTextColor;
+      // Trigger dyn color reload if values altered
+      const prev = prevStateRef.current;
+      const colorsChanged = !prev || 
+        prev.primaryColor !== s.primaryColor || 
+        prev.secondaryColor !== s.secondaryColor ||
+        prev.glowColor !== s.glowColor ||
+        prev.accentTextColor !== s.accentTextColor;
 
-    if (colorsChanged) {
-      refreshStyles(s);
-    }
+      if (colorsChanged) {
+        refreshStyles(s);
+      }
 
-    const battingTeamName = s.currentInnings === 1 ? s.config.team1 : s.config.team2;
-    const bowlingTeamName = s.currentInnings === 1 ? s.config.team2 : s.config.team1;
+      const battingTeamName = s.currentInnings === 1 ? (s.config?.team1 || "Team A") : (s.config?.team2 || "Team B");
+      const bowlingTeamName = s.currentInnings === 1 ? (s.config?.team2 || "Team B") : (s.config?.team1 || "Team A");
 
-    const isNasirBatting = battingTeamName.toUpperCase().includes("NASIR");
+      const isNasirBatting = battingTeamName.toUpperCase().includes("NASIR");
     const isNasirBowling = bowlingTeamName.toUpperCase().includes("NASIR");
     
     const isChaseActive = s.currentInnings === 2 && s.target !== null;
@@ -1528,11 +1546,11 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
         fields.tournamentText.text = `${s.runs >= (s.target || 0) ? battingAbbrev : bowlingAbbrev} WON!`;
       } else if (isChaseActive) {
         const runsNeeded = s.target !== null ? s.target - s.runs : 0;
-        const ballsRemaining = Math.max(0, (s.config.totalOvers * 6) - s.balls);
+        const ballsRemaining = Math.max(0, ((s.config?.totalOvers || 20) * 6) - s.balls);
         fields.tournamentText.text = `NEED ${runsNeeded} RUNS FROM ${ballsRemaining} BALLS`;
       } else {
         // First Innings - display toss decision (FALAK XI DARAVE DECIDED TO BOWL)
-        const tossText = `${s.config.tossWinner.toUpperCase()} DECIDED TO ${s.config.tossDecision.toUpperCase() === "bat" ? "BAT" : "BOWL"}`;
+        const tossText = `${(s.config?.tossWinner || "TEAM").toUpperCase()} DECIDED TO ${(s.config?.tossDecision || "bat").toUpperCase() === "BAT" ? "BAT" : "BOWL"}`;
         fields.tournamentText.text = tossText;
       }
       
@@ -1547,40 +1565,44 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     // ────────────────────────────────────────────────────────
     // PANEL 2 BATTING LIST UPDATES
     // ────────────────────────────────────────────────────────
+    const batsman1 = s.batsman1 || { name: "BATSMAN 1", runs: 0, balls: 0, isStriker: true };
+    const batsman2 = s.batsman2 || { name: "BATSMAN 2", runs: 0, balls: 0, isStriker: false };
+    const bowler = s.bowler || { name: "BOWLER", runs: 0, wickets: 0, oversBowled: [], currentOverRuns: 0 };
+
     if (fields.batsman1Name) {
-      fields.batsman1Name.text = s.batsman1.name.toUpperCase();
-      fields.batsman1Name.style.fill = s.batsman1.isStriker ? 0xffffff : 0xa1a1aa;
+      fields.batsman1Name.text = batsman1.name.toUpperCase();
+      fields.batsman1Name.style.fill = batsman1.isStriker ? 0xffffff : 0xa1a1aa;
       fields.batsman1Name.style.fontSize = 17;
       updateTextMarquee(fields.batsman1Name, 360, "left");
     }
     if (fields.batsman1Runs) {
-      fields.batsman1Runs.text = String(s.batsman1.runs);
-      fields.batsman1Runs.style.fill = s.batsman1.isStriker ? hexStringToNumber(s.accentTextColor, 0xfbbf24) : 0xffffff;
+      fields.batsman1Runs.text = String(batsman1.runs);
+      fields.batsman1Runs.style.fill = batsman1.isStriker ? hexStringToNumber(s.accentTextColor, 0xfbbf24) : 0xffffff;
     }
     if (fields.batsman1Balls) {
-      fields.batsman1Balls.text = String(s.batsman1.balls);
-      fields.batsman1Balls.style.fill = s.batsman1.isStriker ? 0x94a3b8 : 0x71717a;
+      fields.batsman1Balls.text = String(batsman1.balls);
+      fields.batsman1Balls.style.fill = batsman1.isStriker ? 0x94a3b8 : 0x71717a;
     }
     if (fields.batsman1StrikerIndicator) {
-      fields.batsman1StrikerIndicator.visible = s.batsman1.isStriker;
+      fields.batsman1StrikerIndicator.visible = batsman1.isStriker;
     }
 
     if (fields.batsman2Name) {
-      fields.batsman2Name.text = s.batsman2.name.toUpperCase();
-      fields.batsman2Name.style.fill = s.batsman2.isStriker ? 0xffffff : 0xa1a1aa;
+      fields.batsman2Name.text = batsman2.name.toUpperCase();
+      fields.batsman2Name.style.fill = batsman2.isStriker ? 0xffffff : 0xa1a1aa;
       fields.batsman2Name.style.fontSize = 17;
       updateTextMarquee(fields.batsman2Name, 360, "left");
     }
     if (fields.batsman2Runs) {
-      fields.batsman2Runs.text = String(s.batsman2.runs);
-      fields.batsman2Runs.style.fill = s.batsman2.isStriker ? hexStringToNumber(s.accentTextColor, 0xfbbf24) : 0xffffff;
+      fields.batsman2Runs.text = String(batsman2.runs);
+      fields.batsman2Runs.style.fill = batsman2.isStriker ? hexStringToNumber(s.accentTextColor, 0xfbbf24) : 0xffffff;
     }
     if (fields.batsman2Balls) {
-      fields.batsman2Balls.text = String(s.batsman2.balls);
-      fields.batsman2Balls.style.fill = s.batsman2.isStriker ? 0x94a3b8 : 0x71717a;
+      fields.batsman2Balls.text = String(batsman2.balls);
+      fields.batsman2Balls.style.fill = batsman2.isStriker ? 0x94a3b8 : 0x71717a;
     }
     if (fields.batsman2StrikerIndicator) {
-      fields.batsman2StrikerIndicator.visible = s.batsman2.isStriker;
+      fields.batsman2StrikerIndicator.visible = batsman2.isStriker;
     }
 
     // ────────────────────────────────────────────────────────
@@ -1588,7 +1610,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     // ────────────────────────────────────────────────────────
     const targetScore = s.target || 0;
     const runsToTarget = targetScore - s.runs;
-    const remainingBalls = Math.max(0, (s.config.totalOvers * 6) - s.balls);
+    const remainingBalls = Math.max(0, ((s.config?.totalOvers || 20) * 6) - s.balls);
     const rrr = remainingBalls > 0 ? (runsToTarget / remainingBalls) * 6 : 0;
 
     if (!isChaseActive) {
@@ -1612,12 +1634,12 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       } 
       else if (displayType === "toss") {
         if (fields.infoTitleText) fields.infoTitleText.text = "TOSS";
-        if (fields.infoValueText) fields.infoValueText.text = s.config.tossDecision.toUpperCase() === "BAT" ? "BAT" : "BOWL";
-        if (fields.infoValueLabelSub) fields.infoValueLabelSub.text = s.config.tossWinner.toUpperCase();
+        if (fields.infoValueText) fields.infoValueText.text = (s.config?.tossDecision || "bat").toUpperCase() === "BAT" ? "BAT" : "BOWL";
+        if (fields.infoValueLabelSub) fields.infoValueLabelSub.text = (s.config?.tossWinner || "TEAM").toUpperCase();
       }
       else {
         // "projected"
-        const proj = s.balls > 0 ? Math.round(crr * s.config.totalOvers) : 0;
+        const proj = s.balls > 0 ? Math.round(crr * (s.config?.totalOvers || 20)) : 0;
         
         if (fields.infoTitleText) fields.infoTitleText.text = "PROJECTED";
         if (fields.infoValueText) fields.infoValueText.text = proj > 0 ? `${proj}` : "-";
@@ -1648,15 +1670,15 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     if (showBowlerState) {
       // Renders active bowler figures and timeline (normal mode or 1st Innings)
       if (fields.bowlerName) {
-        fields.bowlerName.text = s.bowler.name.toUpperCase();
+        fields.bowlerName.text = bowler.name.toUpperCase();
         fields.bowlerName.style.fontSize = 17;
         updateTextMarquee(fields.bowlerName, 240, "left");
       }
       if (fields.bowlerFigures) {
-        fields.bowlerFigures.text = `${s.bowler.wickets}-${s.bowler.runs}`;
+        fields.bowlerFigures.text = `${bowler.wickets}-${bowler.runs}`;
       }
       if (fields.bowlerOvers) {
-        fields.bowlerOvers.text = `${calculateOvers(s.bowler.balls)} OVER`;
+        fields.bowlerOvers.text = `${calculateOvers(bowler.balls)} OVER`;
       }
 
       // Recent balls timeline widgets
@@ -1767,6 +1789,9 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
 
     // Store state in ref
     prevStateRef.current = JSON.parse(JSON.stringify(s));
+    } catch (err) {
+      logError("Error in updatePixiData", err);
+    }
   }
 
   function triggerTvGraphicsWipe(type: "four" | "six" | "wicket" | "single" | "config" | "reset" | "freehit" | "maiden" | "milestone") {
@@ -1874,6 +1899,15 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
 
   return (
     <div className="w-full relative select-none">
+      <div className="absolute top-0 left-0 bg-green-900 text-white p-2 z-50 text-xs w-full text-center font-bold">
+        PIXI RENDERER COMPONENT MOUNTED. IF YOU SEE THIS, REACT WORKS.
+      </div>
+      {debugLog.length > 0 && (
+        <div className="absolute top-8 left-0 bg-red-900/90 text-white p-4 z-50 text-xs font-mono max-h-64 overflow-auto w-full">
+          <h3 className="font-bold mb-2 text-red-300">PIXI RENDERER ERROR</h3>
+          {debugLog.map((log, i) => <div key={i}>{log}</div>)}
+        </div>
+      )}
       <div 
         ref={containerRef} 
         className="w-full h-full relative" 

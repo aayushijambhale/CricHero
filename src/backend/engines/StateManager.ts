@@ -25,7 +25,7 @@ import {
   BallEvent,
   DeliveryInput,
   ValidationResult,
-} from "../types";
+} from "../../types";
 import { MatchEngine, DeliveryResult, formatOvers } from "./MatchEngine";
 import { DeliveryParser } from "./DeliveryParser";
 import { RuleValidator } from "./RuleValidator";

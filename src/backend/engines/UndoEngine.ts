@@ -5,7 +5,7 @@
  * UndoEngine — Snapshot-based state history with unlimited undo
  */
 
-import { MatchState } from "../types";
+import { MatchState } from "../../types";
 
 export interface UndoSnapshot {
   state: MatchState;

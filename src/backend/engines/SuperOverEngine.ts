@@ -26,7 +26,7 @@ import {
   InningsSummary,
   FallOfWicket,
   Extras,
-} from "../types";
+} from "../../types";
 import { RuleValidator } from "./RuleValidator";
 import { DeliveryParser } from "./DeliveryParser";
 

@@ -1,243 +1,324 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
+import { Trophy, Plus, LayoutList, ChevronRight, Play, Tv, LogOut, Search } from "lucide-react";
 import { ScreenType } from "../types";
-import { Trophy, Calendar, MapPin, Users, Settings, Plus, LayoutList, ChevronRight, Activity } from "lucide-react";
-
-interface ITournament {
-  _id: string;
-  name: string;
-  season: string;
-  format: string;
-  startDate: string;
-  endDate?: string;
-  winnerTeamName?: string;
-  status: 'upcoming' | 'ongoing' | 'completed';
-}
-
-interface IMatch {
-  _id: string;
-  tournamentId: string;
-  matchType: string;
-  venue: string;
-  date: string;
-  battingTeamName: string;
-  bowlingTeamName: string;
-  status: 'scheduled' | 'live' | 'completed' | 'abandoned';
-}
 
 interface Props {
   onNavigate: (screen: ScreenType) => void;
 }
 
 export default function TournamentDashboard({ onNavigate }: Props) {
-  const [tournaments, setTournaments] = useState<ITournament[]>([]);
-  const [matches, setMatches] = useState<IMatch[]>([]);
-  const [selectedTournament, setSelectedTournament] = useState<ITournament | null>(null);
+  const [tournaments, setTournaments] = useState<any[]>([]);
+  const [matches, setMatches] = useState<any[]>([]);
+  const [selectedTournament, setSelectedTournament] = useState<any | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // Mock initial fetch
+  // Form states for adding details
+  const [showAddTournament, setShowAddTournament] = useState(false);
+  const [showAddMatch, setShowAddMatch] = useState(false);
+  
+  const [tName, setTName] = useState("");
+  const [mType, setMType] = useState("Group Stage");
+  const [mVenue, setMVenue] = useState("");
+
   useEffect(() => {
-    // We mock data for now because the API implementation will follow the DB schema update
-    setTournaments([
-      {
-        _id: '1',
-        name: 'ICC World Cup',
-        season: '2026',
-        format: 'ODI',
-        startDate: new Date().toISOString(),
-        status: 'ongoing',
-        winnerTeamName: 'India (Predicted)'
-      },
-      {
-        _id: '2',
-        name: 'Indian Premier League',
-        season: '2027',
-        format: 'T20',
-        startDate: new Date().toISOString(),
-        status: 'upcoming'
-      }
-    ]);
+    fetchTournaments();
   }, []);
 
-  useEffect(() => {
-    if (selectedTournament) {
-      setMatches([
-        {
-          _id: 'm1',
-          tournamentId: selectedTournament._id,
-          matchType: 'Group Stage',
-          venue: 'Wankhede Stadium',
-          date: new Date().toISOString(),
-          battingTeamName: 'Mumbai',
-          bowlingTeamName: 'Chennai',
-          status: 'completed'
-        },
-        {
-          _id: 'm2',
-          tournamentId: selectedTournament._id,
-          matchType: 'Final',
-          venue: 'Narendra Modi Stadium',
-          date: new Date().toISOString(),
-          battingTeamName: 'India',
-          bowlingTeamName: 'Australia',
-          status: 'live'
-        }
-      ]);
-    } else {
-      setMatches([]);
+  const fetchTournaments = async () => {
+    try {
+      const res = await fetch("/api/tournaments");
+      const data = await res.json();
+      setTournaments(data);
+    } catch(err) {
+      console.error(err);
     }
-  }, [selectedTournament]);
+  };
+
+  const fetchMatches = async (tId: string) => {
+    try {
+      const res = await fetch(`/api/matches?tournamentId=${tId}`);
+      const data = await res.json();
+      setMatches(data);
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
+  const handleSelectTournament = (t: any) => {
+    setSelectedTournament(t);
+    fetchMatches(t._id);
+    setShowAddTournament(false);
+    setShowAddMatch(false);
+  };
+
+  const loadMatch = async (matchId: string, destination: "controller" | "overlay") => {
+    setLoading(true);
+    try {
+      await fetch(`/api/match-state/load/${matchId}`, { method: "POST" });
+      if (destination === "overlay") {
+        window.open(`/overlay?matchId=${matchId}`, "_blank");
+      } else {
+        onNavigate("controller");
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateTournament = async () => {
+    if (!tName.trim()) return;
+    setLoading(true);
+    try {
+      await fetch("/api/tournaments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: tName, format: "T20", season: "2026", startDate: new Date() })
+      });
+      setTName("");
+      setShowAddTournament(false);
+      await fetchTournaments();
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateMatch = async () => {
+    if (!selectedTournament || !mVenue.trim()) return;
+    setLoading(true);
+    try {
+      await fetch("/api/matches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          tournamentId: selectedTournament._id, 
+          matchType: mType,
+          venue: mVenue,
+          date: new Date()
+        })
+      });
+      setMVenue("");
+      setShowAddMatch(false);
+      await fetchMatches(selectedTournament._id);
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 p-8 flex flex-col font-sans">
-      
-      {/* Header */}
-      <header className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-8 shadow-xl">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg">
-            <Trophy className="text-white w-7 h-7" />
+    <div className="min-h-screen bg-[#020617] text-slate-200 font-sans flex flex-col">
+      {/* Navbar */}
+      <header className="flex bg-slate-950 border-b border-slate-800 h-16 items-center px-6 shadow-xl shadow-black/50 z-10 sticky top-0 justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.5)]">
+            <Trophy className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-black text-white tracking-tight">TOURNAMENTS</h1>
-            <p className="text-slate-400 font-medium">Manage Competitions and Matches</p>
+            <h1 className="text-lg font-black text-white tracking-widest uppercase">CRICSHOW DASHBOARD</h1>
+            <p className="text-[10px] text-slate-500 font-bold tracking-widest uppercase">Tournament Management</p>
           </div>
         </div>
-        
-        <button 
-          onClick={() => onNavigate("launcher")}
-          className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition-colors font-bold shadow-md"
-        >
-          Exit Dashboard
-        </button>
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-full">
+            <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
+            <span className="text-[10px] font-bold tracking-widest uppercase text-slate-300">Admin Active</span>
+          </div>
+          <button className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors" title="Logout (Placeholder)">
+            <LogOut className="w-5 h-5" />
+          </button>
+        </div>
       </header>
 
-      {/* Main Grid */}
-      <div className="flex-1 grid grid-cols-12 gap-8">
+      {/* Main Layout */}
+      <div className="flex-1 flex overflow-hidden">
         
-        {/* Left Col: Tournament List */}
-        <div className="col-span-4 flex flex-col gap-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-bold text-slate-300 flex items-center gap-2">
-              <LayoutList className="w-5 h-5 text-indigo-400" />
-              ACTIVE TOURNAMENTS
+        {/* Left Column: Tournaments */}
+        <div className="w-1/3 max-w-md border-r border-slate-800 bg-[#071226] flex flex-col">
+          <div className="p-6 border-b border-slate-800 flex items-center justify-between sticky top-0 bg-[#071226] z-10">
+            <h2 className="text-sm font-black text-slate-300 flex items-center gap-2 tracking-widest uppercase">
+              <LayoutList className="w-4 h-4 text-cyan-400" />
+              TOURNAMENTS
             </h2>
-            <button className="p-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white shadow-md">
+            <button 
+              onClick={() => setShowAddTournament(true)}
+              className="p-1.5 bg-slate-800 text-cyan-400 hover:bg-cyan-900 hover:text-cyan-300 rounded transition-colors shadow-[0_4px_6px_rgba(0,0,0,0.3)] active:translate-y-0.5"
+            >
               <Plus className="w-4 h-4" />
             </button>
           </div>
           
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {/* Search Box */}
+            <div className="relative mb-4">
+              <Search className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
+              <input 
+                type="text" 
+                placeholder="Search tournaments..." 
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-300 focus:border-cyan-500 outline-none"
+              />
+            </div>
+
+            {showAddTournament && (
+              <div className="p-4 bg-slate-900 rounded-xl border border-cyan-500/30 shadow-lg mb-4">
+                <input 
+                  autoFocus
+                  placeholder="Tournament Name" 
+                  value={tName} onChange={e => setTName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white text-sm outline-none focus:border-cyan-500 mb-3"
+                />
+                <div className="flex gap-2">
+                  <button onClick={handleCreateTournament} disabled={loading} className="flex-1 py-2 bg-gradient-to-b from-cyan-600 to-blue-700 text-white rounded shadow-lg text-xs font-bold transition-all active:translate-y-0.5">CREATE</button>
+                  <button onClick={() => setShowAddTournament(false)} className="px-4 py-2 bg-slate-800 text-white rounded text-xs transition-all active:translate-y-0.5">CANCEL</button>
+                </div>
+              </div>
+            )}
+
             {tournaments.map(t => (
               <div 
                 key={t._id} 
-                onClick={() => setSelectedTournament(t)}
-                className={`p-5 rounded-2xl border cursor-pointer transition-all ${
-                  selectedTournament?._id === t._id 
-                    ? "bg-indigo-900/30 border-indigo-500/50 shadow-lg shadow-indigo-500/10" 
-                    : "bg-slate-900 border-slate-800 hover:bg-slate-800"
-                }`}
+                onClick={() => handleSelectTournament(t)}
+                className={`p-4 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${selectedTournament?._id === t._id ? "bg-gradient-to-r from-indigo-900/40 to-[#071226] border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.1)]" : "bg-slate-900/40 border-slate-800/50 hover:bg-slate-800"}`}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold px-3 py-1 bg-slate-800 rounded-full text-slate-300 tracking-widest">{t.season} {t.format}</span>
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest ${
-                    t.status === 'ongoing' ? 'bg-green-500/20 text-green-400 border border-green-500/20' : 'bg-slate-800 text-slate-400'
-                  }`}>
-                    {t.status}
-                  </span>
+                <div>
+                  <div className="font-bold text-slate-300 text-sm">{t.name}</div>
+                  <div className="text-[10px] font-mono text-slate-500 mt-1 uppercase tracking-wider">{t.format} • {t.status}</div>
                 </div>
-                <h3 className="text-xl font-black text-white mb-1">{t.name}</h3>
-                
-                {t.winnerTeamName && (
-                  <div className="mt-4 p-3 bg-gradient-to-r from-amber-500/20 to-transparent border-l-4 border-amber-500 rounded-r-lg">
-                    <span className="text-xs font-bold text-amber-500 block mb-1">ULTIMATE WINNER</span>
-                    <span className="font-black text-white flex items-center gap-2">
-                      <Trophy className="w-4 h-4 text-amber-400" />
-                      {t.winnerTeamName}
-                    </span>
-                  </div>
-                )}
+                <ChevronRight className={`w-5 h-5 transition-transform ${selectedTournament?._id === t._id ? "text-cyan-400 translate-x-1" : "text-slate-600"}`} />
               </div>
             ))}
+            
+            {tournaments.length === 0 && !loading && (
+              <div className="text-center p-6 text-slate-500 text-sm">No tournaments found. Create one.</div>
+            )}
           </div>
         </div>
 
-        {/* Right Col: Matches inside Tournament */}
-        <div className="col-span-8">
-          {selectedTournament ? (
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl h-full">
-              <div className="flex items-center justify-between mb-8 pb-6 border-b border-slate-800">
+        {/* Right Column: Matches Dashboard */}
+        <div className="flex-1 flex flex-col bg-[#020617] relative">
+          {!selectedTournament ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
+              <Trophy className="w-16 h-16 mb-4 opacity-20" />
+              <p className="text-sm font-bold tracking-widest uppercase">Select a tournament to manage matches</p>
+            </div>
+          ) : (
+            <>
+              <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-[#071226] sticky top-0 z-10 shadow-lg">
                 <div>
-                  <h2 className="text-3xl font-black text-white tracking-tight">{selectedTournament.name}</h2>
-                  <p className="text-slate-400 mt-1 flex items-center gap-2">
-                    <Calendar className="w-4 h-4" /> Season {selectedTournament.season}
-                  </p>
+                  <div className="text-[10px] text-cyan-400 font-bold mb-1 uppercase tracking-widest">{selectedTournament.name}</div>
+                  <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                    MATCH SCHEDULE
+                  </h2>
                 </div>
-                <button className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-600/20">
-                  <Plus className="w-5 h-5" />
-                  Add Match
+                <button 
+                  onClick={() => setShowAddMatch(true)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 rounded transition-colors flex items-center gap-2 text-xs font-bold shadow-[0_4px_6px_rgba(0,0,0,0.3)] active:translate-y-0.5"
+                >
+                  <Plus className="w-4 h-4" /> ADD MATCH
                 </button>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="text-sm font-bold text-slate-500 tracking-widest mb-4">MATCHES</h3>
-                
-                {matches.map(m => (
-                  <div key={m._id} className="group p-6 bg-slate-950 border border-slate-800 hover:border-slate-600 rounded-2xl transition-all flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-3 mb-3">
-                        <span className={`text-xs font-bold px-3 py-1 rounded-full tracking-widest ${
-                          m.status === 'live' ? 'bg-red-500/20 text-red-400 animate-pulse' : 'bg-slate-800 text-slate-400'
-                        }`}>
-                          {m.status === 'live' ? '🔴 LIVE' : m.status.toUpperCase()}
+              <div className="flex-1 overflow-y-auto p-6">
+                {showAddMatch && (
+                  <div className="p-6 bg-slate-900 rounded-xl border border-cyan-500/30 shadow-2xl mb-6 max-w-xl">
+                    <h3 className="text-xs font-bold tracking-widest text-slate-400 mb-4 uppercase">Create New Match</h3>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Venue Name</label>
+                        <input 
+                          placeholder="e.g. Wankhede Stadium" 
+                          value={mVenue} onChange={e => setMVenue(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm outline-none focus:border-cyan-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Match Type</label>
+                        <select
+                          value={mType} onChange={e => setMType(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm outline-none focus:border-cyan-500"
+                        >
+                          <option>Group Stage</option>
+                          <option>Quarter Final</option>
+                          <option>Semi Final</option>
+                          <option>Final</option>
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <button onClick={handleCreateMatch} disabled={loading} className="py-2 px-6 bg-gradient-to-b from-cyan-600 to-blue-700 text-white rounded text-xs font-bold transition-all active:translate-y-0.5">SAVE MATCH</button>
+                      <button onClick={() => setShowAddMatch(false)} className="px-6 py-2 bg-slate-800 text-white rounded text-xs transition-all active:translate-y-0.5">CANCEL</button>
+                    </div>
+                  </div>
+                )}
+
+                {matches.length === 0 && !showAddMatch && (
+                  <div className="text-center p-12 text-slate-500 border border-slate-800 border-dashed rounded-xl">
+                    <p className="text-sm">No matches scheduled in this tournament.</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {matches.map(m => (
+                    <div key={m._id} className="p-5 rounded-xl border bg-[#071226] border-slate-800 flex flex-col gap-4 shadow-xl relative overflow-hidden group hover:border-slate-600 transition-colors">
+                      {/* Active Indicator Mock */}
+                      <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-blue-500/10" />
+                      
+                      <div className="flex items-center justify-between relative z-10">
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-900 border border-slate-700 px-2 py-0.5 rounded tracking-widest uppercase">{m.matchType}</span>
+                        <span className="text-[10px] font-bold text-amber-500 flex items-center gap-1">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          {m.status.toUpperCase()}
                         </span>
-                        <span className="text-xs font-bold text-slate-500">{m.matchType}</span>
                       </div>
                       
-                      <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-3">
-                          <span className="text-xl font-black text-white">{m.battingTeamName}</span>
-                          <span className="text-slate-500 font-bold text-sm">vs</span>
-                          <span className="text-xl font-black text-white">{m.bowlingTeamName}</span>
+                      <div className="text-base text-slate-200 flex flex-col gap-1 relative z-10 font-bold">
+                        <div className="flex items-center justify-between">
+                          <span>{m.battingTeam?.teamName || "TBD"}</span>
+                          <span className="text-[10px] text-slate-600">vs</span>
+                          <span>{m.bowlingTeam?.teamName || "TBD"}</span>
                         </div>
                       </div>
                       
-                      <div className="mt-3 flex items-center gap-4 text-xs font-bold text-slate-500">
-                        <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {m.venue}</span>
+                      <div className="text-[10px] font-mono text-slate-500 uppercase flex items-center gap-1 relative z-10 border-b border-slate-800 pb-3">
+                        <LayoutList className="w-3 h-3" /> {m.venue}
+                      </div>
+                      
+                      <div className="mt-auto grid grid-cols-2 gap-2 relative z-10">
+                        <button 
+                          onClick={() => loadMatch(m._id, "controller")}
+                          disabled={loading}
+                          className="py-2.5 bg-gradient-to-b from-indigo-600 to-indigo-800 hover:from-indigo-500 hover:to-indigo-700 border-t border-indigo-400 text-white rounded font-bold text-[10px] tracking-widest flex items-center justify-center gap-1 transition-all active:translate-y-0.5 shadow-[0_4px_6px_rgba(0,0,0,0.3)] disabled:opacity-50"
+                        >
+                          <Play className="w-3 h-3" />
+                          CONTROLLER
+                        </button>
+                        
+                        <button 
+                          onClick={() => {
+                            // Load it in backend first, then navigate.
+                            loadMatch(m._id, "overlay");
+                          }}
+                          disabled={loading}
+                          className="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 rounded font-bold text-[10px] tracking-widest flex items-center justify-center gap-1 transition-all active:translate-y-0.5 shadow-[0_4px_6px_rgba(0,0,0,0.3)] disabled:opacity-50"
+                        >
+                          <Tv className="w-3 h-3" />
+                          OVERLAY
+                        </button>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-3">
-                      {m.status === 'live' && (
-                        <button 
-                          onClick={() => onNavigate("controller")}
-                          className="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white rounded-xl font-bold shadow-lg shadow-red-600/20 transition-all active:scale-95 flex items-center gap-2"
-                        >
-                          <Activity className="w-5 h-5" /> Open Controller
-                        </button>
-                      )}
-                      <button className="w-12 h-12 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center justify-center transition-colors">
-                        <ChevronRight className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="h-full flex items-center justify-center border-2 border-dashed border-slate-800 rounded-3xl">
-              <div className="text-center">
-                <Trophy className="w-16 h-16 text-slate-700 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-slate-500">Select a Tournament</h3>
-                <p className="text-slate-600">Choose a tournament from the left to view its matches</p>
-              </div>
-            </div>
+            </>
           )}
         </div>
-
       </div>
     </div>
   );

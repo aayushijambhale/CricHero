@@ -5,7 +5,7 @@
  * ProductionPanelEngine — Manages broadcast production graphic overlays
  */
 
-import { MatchState, ProductionPanel, ProductionPanelType } from "../types";
+import { MatchState, ProductionPanel, ProductionPanelType } from "../../types";
 
 export interface PlayerCardData {
   name: string;

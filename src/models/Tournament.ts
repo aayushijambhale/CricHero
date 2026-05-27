@@ -135,4 +135,4 @@ TournamentSchema.index({ status: 1, date: -1 });
 TournamentSchema.index({ team1: 1, team2: 1 });
 TournamentSchema.index({ createdAt: -1 });
 
-export const Tournament = mongoose.model<ITournament>("Tournament", TournamentSchema);
+export const Tournament = mongoose.models.Tournament || mongoose.model<ITournament>("Tournament", TournamentSchema);

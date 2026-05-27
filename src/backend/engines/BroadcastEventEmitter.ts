@@ -17,7 +17,7 @@
  *   - Match events (powerplay start/end, innings complete, result)
  */
 
-import { BroadcastEvent, BroadcastEventType, MatchState, BallEvent } from "../types";
+import { BroadcastEvent, BroadcastEventType, MatchState, BallEvent } from "../../types";
 
 type EventHandler = (event: BroadcastEvent) => void;
 

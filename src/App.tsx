@@ -1,18 +1,10 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState, useEffect } from "react";
 import { MatchState, ScreenType, createDefaultMatchState } from "./types";
-import LauncherScreen from "./components/LauncherScreen";
+import TournamentDashboard from "./components/TournamentDashboard";
 import UnifiedController from "./components/UnifiedController";
 import BroadcastOverlay from "./components/BroadcastOverlay";
-import TournamentDashboard from "./components/TournamentDashboard";
 
-// Beautiful production default baseline in case fetching is delayed
 const defaultInitialState: MatchState = createDefaultMatchState();
-// Apply some custom overrides for the beautiful default view
 defaultInitialState.config.team1 = "FALAK XI DARAVE";
 defaultInitialState.config.team2 = "NASIR XI POLADPUR";
 defaultInitialState.config.tossWinner = "NASIR XI POLADPUR";
@@ -55,15 +47,12 @@ export default function App() {
   const [initialData, setInitialData] = useState<MatchState>(defaultInitialState);
   const [loading, setLoading] = useState(true);
 
-  // Parse path on initial setup
   useEffect(() => {
     const path = window.location.pathname;
     if (path === "/controller") {
       setScreen("controller");
     } else if (path === "/overlay") {
       setScreen("overlay");
-    } else if (path === "/tournaments") {
-      setScreen("tournaments");
     } else {
       setScreen("launcher");
     }
@@ -85,14 +74,12 @@ export default function App() {
     fetchFreshState();
   }, []);
 
-  // Sync navigation bar address dynamically
   function handleNavigate(targetScreen: ScreenType) {
     setScreen(targetScreen);
     const targetUrl = targetScreen === "launcher" ? "/" : `/${targetScreen}`;
     window.history.pushState(null, "", targetUrl);
   }
 
-  // Handle browser navigation back/forward actions
   useEffect(() => {
     function handlePopState() {
       const path = window.location.pathname;
@@ -100,8 +87,6 @@ export default function App() {
         setScreen("controller");
       } else if (path === "/overlay") {
         setScreen("overlay");
-      } else if (path === "/tournaments") {
-        setScreen("tournaments");
       } else {
         setScreen("launcher");
       }
@@ -113,31 +98,25 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="w-full min-h-screen bg-[#0a0a0c] flex flex-col justify-center items-center text-white gap-4 font-sans select-none">
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-full min-h-screen bg-[#020617] flex flex-col justify-center items-center text-white gap-4 font-sans select-none">
+        <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
         <div className="flex flex-col items-center gap-1 text-center">
-          <h2 className="text-sm font-bold tracking-widest text-slate-400 uppercase">CRI-HD DIGITAL SYSTEM</h2>
-          <p className="text-xs text-slate-500 font-medium">Booting transmission modules and WebGL overlays...</p>
+          <h2 className="text-sm font-bold tracking-widest text-slate-400 uppercase">CRICSHOW DIGITAL SYSTEM</h2>
+          <p className="text-xs text-slate-500 font-medium">Booting transmission modules...</p>
         </div>
       </div>
     );
   }
 
-  // Dynamic router render
   switch (screen) {
     case "controller":
       return <UnifiedController initialState={initialData} onNavigate={handleNavigate} />;
     case "overlay":
       return <BroadcastOverlay initialState={initialData} />;
-    case "tournaments":
-      return <TournamentDashboard onNavigate={handleNavigate} />;
     case "launcher":
     default:
       return (
-        <LauncherScreen 
-          initialState={initialData} 
-          onNavigate={handleNavigate} 
-        />
+        <TournamentDashboard onNavigate={handleNavigate} />
       );
   }
 }

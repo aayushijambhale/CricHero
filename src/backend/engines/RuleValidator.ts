@@ -15,7 +15,7 @@ import {
   ValidationResult,
   RuleViolation,
   WicketType,
-} from "../types";
+} from "../../types";
 
 // ─────────────────────────────────────────────────────────────
 // ICC Dismissal Rule Tables

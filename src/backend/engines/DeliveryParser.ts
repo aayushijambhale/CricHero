@@ -39,7 +39,7 @@
  *   "LB+2"      → leg bye, 2 runs
  */
 
-import { BallType, DeliveryInput, WicketType } from "../types";
+import { BallType, DeliveryInput, WicketType } from "../../types";
 
 const WICKET_CODE_MAP: Record<string, WicketType> = {
   bo: "bowled",

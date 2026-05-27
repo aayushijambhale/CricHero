@@ -1,42 +1,33 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useEffect, KeyboardEvent } from "react";
+import React, { useState, useEffect } from "react";
 import { MatchState, WicketType } from "../types";
-import { 
-  Users, Settings, RefreshCw, Play, Tv, Sparkles, AlertCircle, History, Radio, X
-} from "lucide-react";
+import { Settings, X, AlertCircle } from "lucide-react";
+import { io } from "socket.io-client";
+
+import { MatchHeader } from "./controller/MatchHeader";
+import { MatchPlayers } from "./controller/MatchPlayers";
+import { MatchContext } from "./controller/MatchContext";
+import { ScoreMatrix } from "./controller/ScoreMatrix";
+import { ProductionMonitor } from "./controller/ProductionMonitor";
 
 interface Props {
   initialState: MatchState;
   onNavigate?: (screen: string) => void;
 }
 
-// ─── Component ──────────────────────────────────────────────────────────────
-
 export default function UnifiedController({ initialState, onNavigate }: Props) {
   const [state, setState] = useState<MatchState>(initialState);
   const [loading, setLoading] = useState(false);
-
-  // ─── Modals (Popups) ───
-  const [activeModal, setActiveModal] = useState<"settings" | "batsman" | "bowler" | "wicket" | "dls" | null>(null);
-
-  // Delivery Input
-  const [deliveryInput, setDeliveryInput] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Wicket Modal State
+  const [activeModal, setActiveModal] = useState<"matchSelector" | "settings" | "batsman" | "bowler" | "wicket" | null>(null);
+
   const [wicketType, setWicketType] = useState<WicketType>("bowled");
   const [wicketDismissed, setWicketDismissed] = useState<"striker" | "non-striker">("striker");
   const [newBatsman, setNewBatsman] = useState("");
 
-  // Change Player Modal State
   const [newPlayerName, setNewPlayerName] = useState("");
   const [changeTarget, setChangeTarget] = useState<"batsman1" | "batsman2" | "bowler">("batsman1");
 
-  // Settings State
   const [settingsForm, setSettingsForm] = useState(state.config);
 
   useEffect(() => {
@@ -44,29 +35,34 @@ export default function UnifiedController({ initialState, onNavigate }: Props) {
       try {
         const res = await fetch("/api/match-state");
         const data = await res.json();
-        if (data) setState(data);
+        if (data) {
+          setState(data);
+          if (!(data.config as any).matchId) {
+            setActiveModal("matchSelector");
+          }
+        }
       } catch (err) {
         console.error("Failed to fetch initial controller state", err);
       }
     }
     fetchState();
 
-    const sse = new EventSource("/api/events");
-    sse.onmessage = (e) => {
+    const socket = io();
+    socket.on('dispatch', (eventData: any) => {
       try {
-        const parsed = JSON.parse(e.data);
-        if (parsed.event === "update" || parsed.event === "initial") {
-          setState(parsed.data);
-          setSettingsForm(parsed.data.config);
+        if (eventData.type === "update" || eventData.type === "initial") {
+          setState(eventData.payload);
+          setSettingsForm(eventData.payload.config);
         }
       } catch (err) {
-        console.error("Failed to parse SSE", err);
+        console.error("Failed to parse Socket event", err);
       }
-    };
-    return () => sse.close();
-  }, []);
+    });
 
-  // ─── API Actions ───
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   async function pushDelivery(delivery: any) {
     setLoading(true);
@@ -82,7 +78,20 @@ export default function UnifiedController({ initialState, onNavigate }: Props) {
         setErrorMsg(data.error);
       } else {
         setState(data.state);
-        setDeliveryInput("");
+        
+        if (data.result) {
+          if (data.result.inningsComplete) {
+            setTimeout(() => {
+              if (window.confirm("INNINGS COMPLETE! Do you want to switch innings now?")) {
+                fetch("/api/match-state/action/switch-innings", { method: "POST" });
+              }
+            }, 500);
+          } else if (data.result.overComplete) {
+            setChangeTarget("bowler");
+            setNewPlayerName("");
+            setActiveModal("bowler");
+          }
+        }
       }
     } catch (err) {
       setErrorMsg("Network error processing delivery.");
@@ -114,27 +123,6 @@ export default function UnifiedController({ initialState, onNavigate }: Props) {
     }
   }
 
-  // ─── Handlers ───
-
-  const handleDeliverySubmit = () => {
-    if (!deliveryInput.trim()) return;
-    pushDelivery(deliveryInput);
-  };
-
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      handleDeliverySubmit();
-    }
-  };
-
-  const handleQuickRun = (runs: number) => {
-    pushDelivery({ ballType: "normal", runs, isWicket: false });
-  };
-
-  const handleQuickExtra = (type: "wide" | "noball" | "bye" | "legbye") => {
-    pushDelivery({ ballType: type, runs: 0, isWicket: false });
-  };
-
   const submitWicket = () => {
     if (!newBatsman.trim()) {
       setErrorMsg("Please provide the new batsman name.");
@@ -153,28 +141,30 @@ export default function UnifiedController({ initialState, onNavigate }: Props) {
     setErrorMsg("");
   };
 
-  const submitPlayerChange = () => {
+  const submitPlayerChange = async () => {
     if (!newPlayerName.trim()) return;
-    
-    // Fetch current state and update
-    const stateCopy = JSON.parse(JSON.stringify(state));
-    if (changeTarget === "batsman1") {
-      stateCopy.batsman1.name = newPlayerName;
-    } else if (changeTarget === "batsman2") {
-      stateCopy.batsman2.name = newPlayerName;
-    } else if (changeTarget === "bowler") {
-      stateCopy.bowler.name = newPlayerName;
-      stateCopy.bowler.runs = 0;
-      stateCopy.bowler.wickets = 0;
-      stateCopy.bowler.balls = 0;
-      stateCopy.bowler.dots = 0;
-      stateCopy.bowler.wides = 0;
-      stateCopy.bowler.noBalls = 0;
+    setLoading(true);
+    try {
+      if (changeTarget === "bowler") {
+        await fetch("/api/match-state/action/change-bowler", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: newPlayerName })
+        });
+      } else {
+        await fetch("/api/match-state/action/retire-batsman", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ which: changeTarget, name: newPlayerName, isHurt: false })
+        });
+      }
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setActiveModal(null);
+      setNewPlayerName("");
     }
-    
-    pushConfigUpdate(stateCopy);
-    setActiveModal(null);
-    setNewPlayerName("");
   };
 
   const submitSettings = () => {
@@ -182,292 +172,44 @@ export default function UnifiedController({ initialState, onNavigate }: Props) {
     setActiveModal(null);
   };
 
-  const overStr = `${Math.floor(state.balls / 6)}.${state.balls % 6}`;
-
-  // ─── Render ──────────────────────────────────────────────────────────────
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans p-6 overflow-hidden flex flex-col h-screen">
-      {/* Header */}
-      <header className="flex items-center justify-between bg-slate-900 border border-indigo-500/20 rounded-2xl p-4 mb-6 shadow-xl">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <Radio className="text-white w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-black text-white tracking-tight">ICC MATCH CONTROLLER</h1>
-            <p className="text-sm text-indigo-400 font-semibold">{state.config.team1} vs {state.config.team2}</p>
-          </div>
+    <div className="min-h-screen bg-[#020617] text-slate-200 font-sans flex flex-col overflow-hidden">
+      <MatchHeader state={state} />
+
+      <div className="flex-1 grid grid-cols-12 gap-4 p-4 min-h-0">
+        <div className="col-span-3 flex flex-col gap-4 overflow-hidden">
+          <MatchPlayers 
+            state={state} 
+            setChangeTarget={setChangeTarget} 
+            setNewPlayerName={setNewPlayerName}
+            setActiveModal={setActiveModal} 
+          />
         </div>
         
-        <div className="flex items-center gap-6">
-          <div className="text-right">
-            <div className="text-4xl font-black text-white tracking-tighter">
-              {state.runs}-{state.wickets}
-            </div>
-            <div className="text-slate-400 font-medium tracking-wide text-sm">
-              OVERS: <span className="text-indigo-400 font-bold">{overStr}</span>
-            </div>
-          </div>
-          <div className="w-px h-12 bg-slate-800" />
-          <div className="flex gap-2">
-            <button 
-              onClick={() => setActiveModal("settings")}
-              className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors border border-slate-700"
-            >
-              <Settings className="w-5 h-5 text-slate-300" />
-            </button>
-            {onNavigate && (
-              <button 
-                onClick={() => onNavigate("launcher")}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-colors font-bold shadow-lg shadow-indigo-600/20"
-              >
-                Exit
-              </button>
-            )}
-          </div>
+        <div className="col-span-5 flex flex-col gap-4 overflow-hidden">
+          <ScoreMatrix 
+            state={state}
+            loading={loading}
+            pushDelivery={pushDelivery}
+            setActiveModal={setActiveModal}
+            errorMsg={errorMsg}
+          />
+          <MatchContext state={state} />
         </div>
-      </header>
-
-      {/* Main Grid */}
-      <div className="flex-1 grid grid-cols-12 gap-6 min-h-0">
         
-        {/* Left Column: Match Details & Players */}
-        <div className="col-span-3 flex flex-col gap-6 overflow-y-auto pr-2">
-          
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-            <h2 className="text-sm font-bold text-slate-400 mb-4 tracking-wider">CURRENT BATSMEN</h2>
-            
-            <div className="space-y-3">
-              {[state.batsman1, state.batsman2].map((bat, idx) => (
-                <div 
-                  key={idx} 
-                  className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-colors ${bat.isStriker ? "bg-indigo-900/30 border-indigo-500/50" : "bg-slate-800/50 border-slate-700/50 hover:bg-slate-800"}`}
-                  onClick={() => {
-                    setChangeTarget(idx === 0 ? "batsman1" : "batsman2");
-                    setNewPlayerName(bat.name);
-                    setActiveModal("batsman");
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    {bat.isStriker && <div className="w-2 h-2 rounded-full bg-indigo-500" />}
-                    <span className="font-bold text-slate-200">{bat.name}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-bold text-white text-lg">{bat.runs}</span>
-                    <span className="text-slate-400 text-xs ml-1">({bat.balls})</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-            <h2 className="text-sm font-bold text-slate-400 mb-4 tracking-wider flex items-center justify-between">
-              CURRENT BOWLER
-              <button 
-                onClick={() => {
-                  setChangeTarget("bowler");
-                  setNewPlayerName(state.bowler.name);
-                  setActiveModal("bowler");
-                }}
-                className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300 hover:text-white"
-              >
-                Change
-              </button>
-            </h2>
-            
-            <div className="p-3 bg-slate-800/50 border border-slate-700/50 rounded-xl flex items-center justify-between">
-              <span className="font-bold text-slate-200">{state.bowler.name}</span>
-              <div className="text-right">
-                <span className="font-bold text-white text-lg">{state.bowler.wickets}-{state.bowler.runs}</span>
-                <span className="text-slate-400 text-xs ml-1">({Math.floor(state.bowler.balls / 6)}.{state.bowler.balls % 6})</span>
-              </div>
-            </div>
-            
-            <div className="mt-4 flex flex-wrap gap-2">
-              {state.thisOver.map((b, i) => (
-                <div key={i} className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold border border-slate-700">
-                  {b}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex-1">
-            <h2 className="text-sm font-bold text-slate-400 mb-4 tracking-wider">MATCH METRICS</h2>
-            <div className="space-y-4">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Current Run Rate</span>
-                <span className="font-bold text-white">{state.currentRunRate.toFixed(2)}</span>
-              </div>
-              {state.currentInnings === 2 && state.target && (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Required Run Rate</span>
-                    <span className="font-bold text-indigo-400">{state.requiredRunRate.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Target</span>
-                    <span className="font-bold text-white">{state.target}</span>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
+        <div className="col-span-4 flex flex-col gap-4 overflow-hidden">
+          <ProductionMonitor 
+            state={state}
+            pushConfigUpdate={pushConfigUpdate}
+            undo={undo}
+            loading={loading}
+          />
         </div>
-
-        {/* Center Column: Controller Input */}
-        <div className="col-span-6 flex flex-col gap-6">
-          
-          <div className="bg-slate-900 border-2 border-indigo-500/20 rounded-3xl p-8 shadow-2xl flex-1 flex flex-col">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-xl font-black text-white flex items-center gap-3">
-                <Tv className="text-indigo-500" />
-                DELIVERY INPUT
-              </h2>
-              {state.freeHit && (
-                <span className="px-3 py-1 bg-amber-500/20 text-amber-500 border border-amber-500/50 rounded-full text-sm font-bold animate-pulse">
-                  FREE HIT ACTIVE
-                </span>
-              )}
-            </div>
-
-            {errorMsg && (
-              <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-400 flex items-center gap-3">
-                <AlertCircle className="w-5 h-5" />
-                <span className="font-medium">{errorMsg}</span>
-              </div>
-            )}
-
-            {/* Shorthand Professional Input */}
-            <div className="mb-8 relative">
-              <input 
-                type="text" 
-                value={deliveryInput}
-                onChange={(e) => setDeliveryInput(e.target.value.toUpperCase())}
-                onKeyDown={handleKeyDown}
-                placeholder="Type delivery (e.g. 1, 4, WD, NB+6, W-st) & press Enter"
-                className="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl px-6 py-5 text-2xl font-mono text-white focus:border-indigo-500 focus:outline-none transition-colors shadow-inner"
-              />
-              <button 
-                onClick={handleDeliverySubmit}
-                disabled={loading || !deliveryInput}
-                className="absolute right-3 top-3 bottom-3 px-8 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-bold tracking-wider transition-colors shadow-lg"
-              >
-                ENTER
-              </button>
-            </div>
-
-            <div className="w-full h-px bg-slate-800 mb-8" />
-
-            {/* Quick Action Pads */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
-              {[0, 1, 2, 3, 4, 6].map(runs => (
-                <button 
-                  key={runs}
-                  onClick={() => handleQuickRun(runs)}
-                  disabled={loading}
-                  className={`py-6 rounded-2xl font-black text-2xl shadow-lg border-b-4 transition-all active:translate-y-1 active:border-b-0
-                    ${runs === 4 || runs === 6 
-                      ? "bg-gradient-to-br from-indigo-500 to-purple-600 border-indigo-800 text-white" 
-                      : "bg-slate-800 border-slate-900 text-slate-200 hover:bg-slate-700"}`}
-                >
-                  {runs === 0 ? "DOT" : runs}
-                </button>
-              ))}
-              
-              <button 
-                onClick={() => setActiveModal("wicket")}
-                disabled={loading}
-                className="col-span-2 py-6 rounded-2xl bg-gradient-to-br from-red-500 to-red-700 border-b-4 border-red-900 text-white font-black text-2xl shadow-lg shadow-red-500/20 active:translate-y-1 active:border-b-0"
-              >
-                WICKET
-              </button>
-            </div>
-
-            <div className="grid grid-cols-4 gap-4">
-              {[
-                { label: "WIDE", type: "wide", color: "bg-amber-600", border: "border-amber-800" },
-                { label: "NO BALL", type: "noball", color: "bg-orange-600", border: "border-orange-800" },
-                { label: "BYE", type: "bye", color: "bg-slate-700", border: "border-slate-900" },
-                { label: "LEG BYE", type: "legbye", color: "bg-slate-700", border: "border-slate-900" }
-              ].map(btn => (
-                <button 
-                  key={btn.label}
-                  onClick={() => handleQuickExtra(btn.type as any)}
-                  disabled={loading}
-                  className={`py-4 rounded-xl ${btn.color} border-b-4 ${btn.border} text-white font-bold tracking-wider shadow-md active:translate-y-1 active:border-b-0 transition-all`}
-                >
-                  {btn.label}
-                </button>
-              ))}
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* Right Column: Settings & Utilities */}
-        <div className="col-span-3 flex flex-col gap-6">
-          
-          <button 
-            onClick={undo}
-            disabled={loading}
-            className="w-full py-4 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-300 transition-colors shadow-lg"
-          >
-            <RefreshCw className="w-5 h-5" />
-            UNDO LAST DELIVERY
-          </button>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex-1 flex flex-col">
-            <h2 className="text-sm font-bold text-slate-400 mb-4 tracking-wider flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-400" />
-              BROADCAST PREVIEW
-            </h2>
-            
-            {/* Fake Preview Box */}
-            <div className="flex-1 bg-slate-950 rounded-xl border border-slate-800 overflow-hidden relative group">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-slate-600 font-medium">Mini Preview Active</span>
-              </div>
-              <div className="absolute bottom-4 left-4 right-4 h-12 bg-slate-900 border border-slate-700 rounded-lg flex shadow-2xl overflow-hidden opacity-50 group-hover:opacity-100 transition-opacity">
-                <div className="w-16 bg-indigo-600 flex items-center justify-center font-bold text-white text-xs">{state.config.team1ShortName}</div>
-                <div className="flex-1 flex items-center px-4 font-bold text-white">{state.runs}-{state.wickets} <span className="text-slate-400 ml-2 font-normal text-xs">{overStr}</span></div>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-slate-800 space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400">Overlay Visible</span>
-                <button 
-                  onClick={() => pushConfigUpdate({ overlayVisible: !state.overlayVisible })}
-                  className={`w-12 h-6 rounded-full transition-colors relative ${state.overlayVisible ? "bg-indigo-600" : "bg-slate-700"}`}
-                >
-                  <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${state.overlayVisible ? "left-7" : "left-1"}`} />
-                </button>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400">Score Strip</span>
-                <button 
-                  onClick={() => pushConfigUpdate({ scoreStripVisible: !state.scoreStripVisible })}
-                  className={`w-12 h-6 rounded-full transition-colors relative ${state.scoreStripVisible ? "bg-indigo-600" : "bg-slate-700"}`}
-                >
-                  <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${state.scoreStripVisible ? "left-7" : "left-1"}`} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
       </div>
 
-      {/* ─── Modals Rendering ─── */}
-
-      {/* Wicket Modal */}
+      {/* MODALS */}
       {activeModal === "wicket" && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
             <div className="bg-red-600 p-4 flex items-center justify-between">
               <h3 className="font-bold text-white text-lg flex items-center gap-2">
@@ -525,9 +267,8 @@ export default function UnifiedController({ initialState, onNavigate }: Props) {
         </div>
       )}
 
-      {/* Player Change Modal (Batsman/Bowler) */}
       {(activeModal === "batsman" || activeModal === "bowler") && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
             <div className="bg-indigo-600 p-4 flex items-center justify-between">
               <h3 className="font-bold text-white text-lg">CHANGE {activeModal.toUpperCase()}</h3>
@@ -555,9 +296,8 @@ export default function UnifiedController({ initialState, onNavigate }: Props) {
         </div>
       )}
 
-      {/* Match Settings Modal */}
       {activeModal === "settings" && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
             <div className="bg-slate-800 p-5 flex items-center justify-between border-b border-slate-700">
               <h3 className="font-bold text-white text-xl flex items-center gap-2"><Settings className="w-5 h-5"/> MATCH CONFIGURATION</h3>
@@ -608,7 +348,6 @@ export default function UnifiedController({ initialState, onNavigate }: Props) {
           </div>
         </div>
       )}
-
     </div>
   );
 }

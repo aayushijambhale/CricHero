@@ -57,35 +57,154 @@ function createGradientTexture(colors: string[], w: number, h: number): PIXI.Tex
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (ctx) {
+    // 1. Base Linear Gradient (Horizontal)
     const grad = ctx.createLinearGradient(0, 0, w, 0);
     colors.forEach((color, index) => {
       grad.addColorStop(index / (colors.length - 1), color);
     });
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
+
+    // 2. Premium TATA IPL 3D vertical gloss shine & bottom shadow
+    const verticalShine = ctx.createLinearGradient(0, 0, 0, h);
+    verticalShine.addColorStop(0, "rgba(255, 255, 255, 0.22)"); // Dynamic metallic gloss top
+    verticalShine.addColorStop(0.12, "rgba(255, 255, 255, 0.08)");
+    verticalShine.addColorStop(0.5, "rgba(0, 0, 0, 0)");
+    verticalShine.addColorStop(0.85, "rgba(0, 0, 0, 0.15)");
+    verticalShine.addColorStop(1, "rgba(0, 0, 0, 0.45)"); // Deep 3D shadow bottom
+    ctx.fillStyle = verticalShine;
+    ctx.fillRect(0, 0, w, h);
+
+    // 3. Premium TV Broadcast Diagonal Scanlines (Carbon Fiber/Grill look)
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.14)";
+    ctx.lineWidth = 1;
+    const spacing = 6;
+    for (let x = -h; x < w; x += spacing) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + h, h);
+      ctx.stroke();
+    }
+
+    // 4. Subtle Gloss highlight overlays (left-to-right glow sweep)
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 1);
+    ctx.lineTo(w, 1); // 1px light border highlight at the very top
+    ctx.stroke();
   }
   return PIXI.Texture.from(canvas);
 }
 
-function drawGlowBarLive(glow: PIXI.Graphics, xTop: number, xBottom: number, h: number, colors: number[]) {
+function drawGlowBarLive(glow: PIXI.Graphics, x: number, h: number, colors: number[]) {
   glow.clear();
   
   // 1. Hot white thin line
   glow.stroke({ color: 0xffffff, width: 2.2, alignment: 0.5 });
-  glow.moveTo(xTop, 0);
-  glow.lineTo(xBottom, h);
+  glow.moveTo(x, 0);
+  glow.lineTo(x, h);
   glow.stroke();
   
   // 2. Linear Bloom (staged bloom glow indices)
   glow.stroke({ color: colors[0], width: 7, alignment: 0.5, alpha: 0.35 });
-  glow.moveTo(xTop, 0);
-  glow.lineTo(xBottom, h);
+  glow.moveTo(x, 0);
+  glow.lineTo(x, h);
   glow.stroke();
   
   glow.stroke({ color: colors[1] || colors[0], width: 16, alignment: 0.5, alpha: 0.16 });
-  glow.moveTo(xTop, 0);
-  glow.lineTo(xBottom, h);
+  glow.moveTo(x, 0);
+  glow.lineTo(x, h);
   glow.stroke();
+}
+
+function getTeamInitials(fullName: string, shortName?: string): string {
+  if (shortName && shortName.trim().length > 0) {
+    return shortName.trim().toUpperCase();
+  }
+  if (!fullName) return "T";
+  const words = fullName.trim().split(/\s+/);
+  if (words.length >= 2) {
+    return (words[0].substring(0, 1) + words[1].substring(0, 1)).toUpperCase();
+  }
+  return fullName.substring(0, 2).toUpperCase();
+}
+
+function updateTextMarquee(
+  textObj: PIXI.Text | undefined,
+  maskWidth: number,
+  align: "left" | "right" = "left"
+) {
+  if (!textObj) return;
+  
+  const currentText = textObj.text;
+  if ((textObj as any)._lastMarqueeText === currentText && (textObj as any)._marqueeTween) {
+    // Text is unchanged and already animating, do not restart tween
+    return;
+  }
+  
+  // Kill any existing marquee tween
+  if ((textObj as any)._marqueeTween) {
+    (textObj as any)._marqueeTween.kill();
+    (textObj as any)._marqueeTween = null;
+  }
+  
+  (textObj as any)._lastMarqueeText = currentText;
+  
+  const textWidth = textObj.width;
+  
+  if (textWidth <= maskWidth) {
+    textObj.alpha = 1;
+    if (align === "right") {
+      textObj.x = maskWidth - textWidth;
+    } else {
+      textObj.x = 0;
+    }
+    return;
+  }
+  
+  // Set starting x to 0 for scrolling
+  textObj.x = 0;
+  textObj.alpha = 1;
+  
+  const scrollDistance = textWidth - maskWidth;
+  const scrollDuration = scrollDistance / 35; // 35px/sec speed
+  
+  const tl = gsap.timeline({ repeat: -1, delay: 1.2 });
+  
+  // Scroll left
+  tl.to(textObj, {
+    x: -scrollDistance,
+    duration: scrollDuration,
+    ease: "none",
+  });
+  
+  // Hold at the end
+  tl.to(textObj, {
+    duration: 1.5,
+  });
+  
+  // Fade out
+  tl.to(textObj, {
+    alpha: 0,
+    duration: 0.3,
+    onComplete: () => {
+      textObj.x = 0;
+    }
+  });
+  
+  // Fade in at start
+  tl.to(textObj, {
+    alpha: 1,
+    duration: 0.2,
+  });
+  
+  // Hold at start
+  tl.to(textObj, {
+    duration: 1.0,
+  });
+  
+  (textObj as any)._marqueeTween = tl;
 }
 
 export default function PixiRenderer({ state }: PixiRendererProps) {
@@ -99,6 +218,9 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     oversText?: PIXI.Text;
     tickerText?: PIXI.Text;
     teamNameText?: PIXI.Text;
+    vsOpponentText?: PIXI.Text;
+    tournamentText?: PIXI.Text;
+    unifiedBorder?: PIXI.Graphics;
     
     batsman1Name?: PIXI.Text;
     batsman1Runs?: PIXI.Text;
@@ -174,6 +296,14 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     glowBar1?: PIXI.Graphics;
     glowBar2?: PIXI.Graphics;
     edgeHighlight?: PIXI.Graphics;
+    powerplayBadge?: PIXI.Graphics;
+    powerplayText?: PIXI.Text;
+    leftLogoSunburst?: PIXI.Sprite;
+    leftLogoCircle?: PIXI.Graphics;
+    leftLogoText?: PIXI.Text;
+    rightLogoSunburst?: PIXI.Sprite;
+    rightLogoCircle?: PIXI.Graphics;
+    rightLogoText?: PIXI.Text;
   }>({});
 
   useEffect(() => {
@@ -183,7 +313,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     async function initPixi() {
       if (!containerRef.current) return;
       
-      const width = 1420;
+      const width = 1920;
       const height = 150;
 
       const newApp = new PIXI.Application();
@@ -219,7 +349,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       containerRef.current.appendChild(app.canvas);
       app.canvas.style.width = "100%";
       app.canvas.style.height = "auto";
-      app.canvas.style.maxWidth = "1420px";
+      app.canvas.style.maxWidth = "1920px";
       app.canvas.style.display = "block";
       app.canvas.style.margin = "0 auto";
 
@@ -232,62 +362,50 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       // ────────────────────────────────────────────────────────
       // CORE GRADIENT TEXTURES (HTML5 Canvas Bridges initializers)
       // ────────────────────────────────────────────────────────
-      const nasirBatTexture = createGradientTexture(["#1d4ed8", "#1e3a8a", "#070b15"], 450, 85);
-      const falakBatTexture = createGradientTexture(["#1e293b", "#0f172a", "#030408"], 450, 85);
-      const batsmanTexture = createGradientTexture(["#070d1a", "#03050b"], 390, 85);
-      const darkInfoTexture = createGradientTexture(["#070b14", "#020306"], 160, 85);
-      const purpleInfoTexture = createGradientTexture(["#581c87", "#2e1065", "#0a0515"], 160, 85);
-      const bowlerTexture = createGradientTexture(["#070b14", "#020306"], 280, 85);
-      const purpleChaseTexture = createGradientTexture(["#581c87", "#2e1065", "#0a0515"], 280, 85);
-      const falakBrandTexture = createGradientTexture(["#1e293b", "#0f172a", "#030408"], 170, 85);
-      const nasirBrandTexture = createGradientTexture(["#581c87", "#2e1065", "#0a0515"], 170, 85);
+      const nasirBatTexture = createGradientTexture(["#1d4ed8", "#1e3a8a", "#070b15"], 1080, 85);
+      const falakBatTexture = createGradientTexture(["#1e293b", "#0f172a", "#030408"], 1080, 85);
+      const batsmanTexture = createGradientTexture(["#070d1a", "#03050b"], 530, 85);
+      const darkInfoTexture = createGradientTexture(["#070b14", "#020306"], 200, 85);
+      const purpleInfoTexture = createGradientTexture(["#581c87", "#2e1065", "#0a0515"], 200, 85);
+      const bowlerTexture = createGradientTexture(["#070b14", "#020306"], 370, 85);
+      const purpleChaseTexture = createGradientTexture(["#0a0515", "#2e1065", "#581c87"], 370, 85); // reversed gradient!
+      const falakBrandTexture = createGradientTexture(["#030408", "#0f172a", "#1e293b"], 640, 85); // reversed gradient!
+      const nasirBrandTexture = createGradientTexture(["#0a0515", "#2e1065", "#581c87"], 640, 85); // reversed gradient!
 
       // ────────────────────────────────────────────────────────
-      // GEOMETRIC SLANTED BASE PANEL BUILDER
-      // Height of strip is 85px. Skew angle is 10px.
+      // GEOMETRIC RECTANGULAR BASE PANEL BUILDER
+      // Height of strip is 85px.
       // ────────────────────────────────────────────────────────
       const drawPanelBg = (
-        xTopStart: number,
-        xTopEnd: number,
-        xBottomStart: number,
-        xBottomEnd: number,
+        xStart: number,
+        xEnd: number,
         texture: PIXI.Texture,
         strokeColor: number,
         strokeWidth: number = 1.5
       ) => {
         const pContainer = new PIXI.Container();
         
-        // 1. Mask shape
+        // 1. Mask shape (rectangular)
         const mask = new PIXI.Graphics();
         mask.fill({ color: 0xffffff });
-        mask.moveTo(xTopStart, 0);
-        mask.lineTo(xTopEnd, 0);
-        mask.lineTo(xBottomEnd, 85);
-        mask.lineTo(xBottomStart, 85);
-        mask.closePath();
+        mask.rect(xStart, 0, xEnd - xStart, 85);
         mask.fill();
         
         // 2. Sprite matching bounds
-        const minX = Math.min(xTopStart, xBottomStart);
-        const maxX = Math.max(xTopEnd, xBottomEnd);
         const sprite = new PIXI.Sprite(texture);
-        sprite.x = minX;
+        sprite.x = xStart;
         sprite.y = 0;
-        sprite.width = maxX - minX;
+        sprite.width = xEnd - xStart;
         sprite.height = 85;
         sprite.mask = mask;
         
         pContainer.addChild(sprite);
         pContainer.addChild(mask);
         
-        // 3. Crisp outer border alignment
+        // 3. Crisp outer border alignment (rectangular)
         const border = new PIXI.Graphics();
         border.stroke({ color: strokeColor, width: strokeWidth, alignment: 1 });
-        border.moveTo(xTopStart, 0);
-        border.lineTo(xTopEnd, 0);
-        border.lineTo(xBottomEnd, 85);
-        border.lineTo(xBottomStart, 85);
-        border.closePath();
+        border.rect(xStart, 0, xEnd - xStart, 85);
         border.stroke();
         
         pContainer.addChild(border);
@@ -295,9 +413,10 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
         return { container: pContainer, sprite, border };
       };
 
-      // Instantiating all background layers
-      const p1Nasir = drawPanelBg(0, 440, 0, 430, nasirBatTexture, 0x1d4ed8, 2);
-      const p1Falak = drawPanelBg(0, 440, 0, 430, falakBatTexture, 0x2d3748, 2);
+      // Instantiating all background layers (perfectly seamless rectangular layout!)
+      // Combined Section 1-2 background (spans 0 to 1080)
+      const p1Nasir = drawPanelBg(0, 1080, nasirBatTexture, 0x1d4ed8, 2);
+      const p1Falak = drawPanelBg(0, 1080, falakBatTexture, 0x2d3748, 2);
       dynamicFieldsRef.current.p1NasirBg = p1Nasir.container;
       dynamicFieldsRef.current.p1NasirBgSprite = p1Nasir.sprite;
       dynamicFieldsRef.current.p1NasirBgBorder = p1Nasir.border;
@@ -306,26 +425,23 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       dynamicFieldsRef.current.p1FalakBgSprite = p1Falak.sprite;
       dynamicFieldsRef.current.p1FalakBgBorder = p1Falak.border;
 
-      // Elegant cyan highlight indicator stripe on far-left
+      // Elegant cyan highlight indicator stripe on far-left (rectangular)
       const edgeHighlight = new PIXI.Graphics();
       edgeHighlight.fill({ color: 0x3b82f6 });
-      edgeHighlight.moveTo(0, 0);
-      edgeHighlight.lineTo(6, 0);
-      edgeHighlight.lineTo(6, 85);
-      edgeHighlight.lineTo(0, 85);
-      edgeHighlight.closePath();
+      edgeHighlight.rect(0, 0, 6, 85);
       edgeHighlight.fill();
       stripContainer.addChild(edgeHighlight);
       dynamicFieldsRef.current.edgeHighlight = edgeHighlight;
 
-      // Panel 2: Stats (always static background)
-      const p2 = drawPanelBg(446, 820, 436, 810, batsmanTexture, 0x1e3a8a, 1.5);
+      // Panel 2: Stats (always static background - hidden so Panel 1 combined gradient shines through)
+      const p2 = drawPanelBg(550, 1080, batsmanTexture, 0x1e3a8a, 1.5);
+      p2.container.visible = false;
       dynamicFieldsRef.current.p2BgSprite = p2.sprite;
       dynamicFieldsRef.current.p2BgBorder = p2.border;
 
       // Panel 3: Info Panel
-      const p3Slate = drawPanelBg(826, 980, 816, 970, darkInfoTexture, 0x334155, 1.5);
-      const p3Purple = drawPanelBg(826, 980, 816, 970, purpleInfoTexture, 0xa855f7, 2);
+      const p3Slate = drawPanelBg(1080, 1280, darkInfoTexture, 0x334155, 1.5);
+      const p3Purple = drawPanelBg(1080, 1280, purpleInfoTexture, 0xa855f7, 2);
       dynamicFieldsRef.current.p3SlateBg = p3Slate.container;
       dynamicFieldsRef.current.p3SlateBgSprite = p3Slate.sprite;
       dynamicFieldsRef.current.p3SlateBgBorder = p3Slate.border;
@@ -334,9 +450,11 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       dynamicFieldsRef.current.p3PurpleBgSprite = p3Purple.sprite;
       dynamicFieldsRef.current.p3PurpleBgBorder = p3Purple.border;
 
-      // Panel 4: Contextual (Bowler statistics vs Chase remaining)
-      const p4BowlerBg = drawPanelBg(986, 1260, 976, 1250, bowlerTexture, 0x334155, 1.5);
-      const p4ChaseBg = drawPanelBg(986, 1260, 976, 1250, purpleChaseTexture, 0xa855f7, 2);
+      // Panel 4: Contextual (Bowler statistics vs Chase remaining - hidden so Panel 5 combined gradient shines through)
+      const p4BowlerBg = drawPanelBg(1280, 1650, bowlerTexture, 0x334155, 1.5);
+      const p4ChaseBg = drawPanelBg(1280, 1650, purpleChaseTexture, 0xa855f7, 2);
+      p4BowlerBg.container.visible = false;
+      p4ChaseBg.container.visible = false;
       dynamicFieldsRef.current.p4BowlerBg = p4BowlerBg.container;
       dynamicFieldsRef.current.p4BowlerBgSprite = p4BowlerBg.sprite;
       dynamicFieldsRef.current.p4BowlerBgBorder = p4BowlerBg.border;
@@ -345,9 +463,9 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       dynamicFieldsRef.current.p4ChaseBgSprite = p4ChaseBg.sprite;
       dynamicFieldsRef.current.p4ChaseBgBorder = p4ChaseBg.border;
 
-      // Panel 5: Opponent Branding
-      const p5Falak = drawPanelBg(1266, 1420, 1256, 1420, falakBrandTexture, 0x334155, 1.5);
-      const p5Nasir = drawPanelBg(1266, 1420, 1256, 1420, nasirBrandTexture, 0xa855f7, 2);
+      // Panel 5: Opponent Branding - Combined Section 4-5 background (spans 1280 to 1920)
+      const p5Falak = drawPanelBg(1280, 1920, falakBrandTexture, 0x334155, 1.5);
+      const p5Nasir = drawPanelBg(1280, 1920, nasirBrandTexture, 0xa855f7, 2);
       dynamicFieldsRef.current.p5FalakBg = p5Falak.container;
       dynamicFieldsRef.current.p5FalakBgSprite = p5Falak.sprite;
       dynamicFieldsRef.current.p5FalakBgBorder = p5Falak.border;
@@ -364,8 +482,8 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       stripContainer.addChild(glowBar1);
       stripContainer.addChild(glowBar2);
       
-      drawGlowBarLive(glowBar1, 983, 973, 85, [0xffffff, 0xc084fc]);
-      drawGlowBarLive(glowBar2, 1263, 1253, 85, [0xffffff, 0xc084fc]);
+      drawGlowBarLive(glowBar1, 1280, 85, [0xffffff, 0xc084fc]);
+      drawGlowBarLive(glowBar2, 1650, 85, [0xffffff, 0xc084fc]);
       
       dynamicFieldsRef.current.glowBar1 = glowBar1;
       dynamicFieldsRef.current.glowBar2 = glowBar2;
@@ -391,54 +509,154 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       dynamicFieldsRef.current.p4ChaseContainer = p4ChaseContainer;
 
       // ────────────────────────────────────────────────────────
+      // UNIFIED OUTER BORDER & SEPARATORS
+      // ────────────────────────────────────────────────────────
+      const unifiedBorder = new PIXI.Graphics();
+      stripContainer.addChild(unifiedBorder);
+      dynamicFieldsRef.current.unifiedBorder = unifiedBorder;
+
+      // ────────────────────────────────────────────────────────
       // PLACING TYPOGRAPHICAL ELEMENTS (Pixel-Perfect Alignment)
       // ────────────────────────────────────────────────────────
 
-      // Panel 1: Batting Score, Overs, Ticker
+      // Circular Team Emblems & AI Generated Glow Ray Halos (Far Left & Far Right)
+      const leftLogoSunburst = PIXI.Sprite.from("/sunburst_radial_pattern.png");
+      leftLogoSunburst.anchor.set(0.5, 0.5);
+      leftLogoSunburst.width = 140;
+      leftLogoSunburst.height = 140;
+      leftLogoSunburst.blendMode = 'add';
+      p1Container.addChild(leftLogoSunburst);
+      dynamicFieldsRef.current.leftLogoSunburst = leftLogoSunburst;
+
+      const leftLogoCircle = new PIXI.Graphics();
+      p1Container.addChild(leftLogoCircle);
+      dynamicFieldsRef.current.leftLogoCircle = leftLogoCircle;
+
+      const leftLogoText = new PIXI.Text({
+        text: "",
+        style: new PIXI.TextStyle({
+          fontFamily: "Bebas Neue",
+          fontSize: 28,
+          fontWeight: "bold",
+          fill: 0xffffff,
+          align: "center",
+        }),
+      });
+      leftLogoText.anchor.set(0.5, 0.5);
+      p1Container.addChild(leftLogoText);
+      dynamicFieldsRef.current.leftLogoText = leftLogoText;
+
+      const rightLogoSunburst = PIXI.Sprite.from("/sunburst_radial_pattern.png");
+      rightLogoSunburst.anchor.set(0.5, 0.5);
+      rightLogoSunburst.width = 140;
+      rightLogoSunburst.height = 140;
+      rightLogoSunburst.blendMode = 'add';
+      p5Container.addChild(rightLogoSunburst);
+      dynamicFieldsRef.current.rightLogoSunburst = rightLogoSunburst;
+
+      const rightLogoCircle = new PIXI.Graphics();
+      p5Container.addChild(rightLogoCircle);
+      dynamicFieldsRef.current.rightLogoCircle = rightLogoCircle;
+
+      const rightLogoText = new PIXI.Text({
+        text: "",
+        style: new PIXI.TextStyle({
+          fontFamily: "Bebas Neue",
+          fontSize: 28,
+          fontWeight: "bold",
+          fill: 0xffffff,
+          align: "center",
+        }),
+      });
+      rightLogoText.anchor.set(0.5, 0.5);
+      p5Container.addChild(rightLogoText);
+      dynamicFieldsRef.current.rightLogoText = rightLogoText;
+
+      // 1px Golden Dividers between panels
+      const dividers = new PIXI.Graphics();
+      dividers.moveTo(550, 5); dividers.lineTo(550, 80);
+      dividers.moveTo(1080, 5); dividers.lineTo(1080, 80);
+      dividers.moveTo(1280, 5); dividers.lineTo(1280, 80);
+      dividers.moveTo(1650, 5); dividers.lineTo(1650, 80);
+      dividers.stroke({ color: 0xfbbf24, width: 1, alpha: 0.6 });
+      stripContainer.addChild(dividers);
+
+      // Powerplay square badge
+      const powerplayBadge = new PIXI.Graphics();
+      p1Container.addChild(powerplayBadge);
+      dynamicFieldsRef.current.powerplayBadge = powerplayBadge;
+
+      const powerplayText = new PIXI.Text({
+        text: "P",
+        style: new PIXI.TextStyle({
+          fontFamily: "Bebas Neue",
+          fontSize: 16,
+          fontWeight: "bold",
+          fill: 0x000000,
+          align: "center",
+        }),
+      });
+      powerplayText.anchor.set(0.5, 0.5);
+      p1Container.addChild(powerplayText);
+      dynamicFieldsRef.current.powerplayText = powerplayText;
+
+      // Panel 1: Batting Score, Overs, Ticker (Stacked Grid Typography with Scrolling Marquees)
+      const teamNameContainer = new PIXI.Container();
+      teamNameContainer.x = 92;
+      teamNameContainer.y = 12;
+      
+      const teamNameMask = new PIXI.Graphics();
+      teamNameMask.fill({ color: 0xffffff });
+      teamNameMask.rect(0, 0, 198, 40);
+      teamNameMask.fill();
+      teamNameContainer.addChild(teamNameMask);
+      teamNameContainer.mask = teamNameMask;
+      
       const teamNameText = new PIXI.Text({
         text: "",
         style: new PIXI.TextStyle({
           fontFamily: "Rajdhani",
-          fontSize: 19,
+          fontSize: 26,
           fontWeight: "800",
           fill: 0xffffff,
           align: "left",
           letterSpacing: 0.5,
         }),
       });
-      teamNameText.x = 24;
-      teamNameText.y = 15;
-      p1Container.addChild(teamNameText);
+      teamNameText.x = 0;
+      teamNameText.y = 0;
+      teamNameContainer.addChild(teamNameText);
+      p1Container.addChild(teamNameContainer);
       dynamicFieldsRef.current.teamNameText = teamNameText;
 
-      const tickerText = new PIXI.Text({
+      const vsOpponentText = new PIXI.Text({
         text: "",
         style: new PIXI.TextStyle({
           fontFamily: "Rajdhani",
           fontSize: 13,
-          fontWeight: "700",
-          fill: 0xdde3ea, 
+          fontWeight: "800",
+          fill: 0x94a3b8, // Silver-gray
           align: "left",
           letterSpacing: 0.2,
         }),
       });
-      tickerText.x = 24;
-      tickerText.y = 52;
-      p1Container.addChild(tickerText);
-      dynamicFieldsRef.current.tickerText = tickerText;
+      vsOpponentText.x = 92;
+      vsOpponentText.y = 48;
+      p1Container.addChild(vsOpponentText);
+      dynamicFieldsRef.current.vsOpponentText = vsOpponentText;
 
       const scoreText = new PIXI.Text({
         text: "",
         style: new PIXI.TextStyle({
           fontFamily: "Bebas Neue",
-          fontSize: 50,
+          fontSize: 38,
           fill: 0xfbbf24, // Vivid amber/gold
           fontWeight: "bold",
           letterSpacing: 0.5,
         }),
       });
-      scoreText.x = 265;
-      scoreText.y = 5;
+      scoreText.x = 300;
+      scoreText.y = 6;
       p1Container.addChild(scoreText);
       dynamicFieldsRef.current.scoreText = scoreText;
 
@@ -451,12 +669,65 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           fontWeight: "bold",
         }),
       });
-      oversText.x = 368;
-      oversText.y = 26;
+      oversText.x = 420;
+      oversText.y = 20;
       p1Container.addChild(oversText);
       dynamicFieldsRef.current.oversText = oversText;
 
-      // Panel 2: Dual Batsmen details
+      const tournamentContainer = new PIXI.Container();
+      tournamentContainer.x = 300;
+      tournamentContainer.y = 48;
+      
+      const tournamentMask = new PIXI.Graphics();
+      tournamentMask.fill({ color: 0xffffff });
+      tournamentMask.rect(0, 0, 240, 25);
+      tournamentMask.fill();
+      tournamentContainer.addChild(tournamentMask);
+      tournamentContainer.mask = tournamentMask;
+
+      const tournamentText = new PIXI.Text({
+        text: "",
+        style: new PIXI.TextStyle({
+          fontFamily: "Rajdhani",
+          fontSize: 13,
+          fontWeight: "800",
+          fill: 0xffffff,
+          align: "left",
+          letterSpacing: 0.5,
+        }),
+      });
+      tournamentText.x = 0;
+      tournamentText.y = 0;
+      tournamentContainer.addChild(tournamentText);
+      p1Container.addChild(tournamentContainer);
+      dynamicFieldsRef.current.tournamentText = tournamentText;
+
+      // Keep tickerText initialized but hidden/empty so no typescript errors or issues
+      const tickerText = new PIXI.Text({
+        text: "",
+        style: new PIXI.TextStyle({
+          fontFamily: "Rajdhani",
+          fontSize: 11,
+          fontWeight: "700",
+          fill: 0x94a3b8,
+        }),
+      });
+      tickerText.visible = false;
+      p1Container.addChild(tickerText);
+      dynamicFieldsRef.current.tickerText = tickerText;
+
+      // Panel 2: Dual Batsmen details (Stretched and with Scrolling Marquees)
+      const batsman1Container = new PIXI.Container();
+      batsman1Container.x = 590;
+      batsman1Container.y = 15;
+      
+      const batsman1Mask = new PIXI.Graphics();
+      batsman1Mask.fill({ color: 0xffffff });
+      batsman1Mask.rect(0, 0, 360, 25);
+      batsman1Mask.fill();
+      batsman1Container.addChild(batsman1Mask);
+      batsman1Container.mask = batsman1Mask;
+
       const batsman1Name = new PIXI.Text({
         text: "",
         style: new PIXI.TextStyle({
@@ -466,20 +737,23 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           fill: 0xffffff,
         }),
       });
-      batsman1Name.x = 485;
-      batsman1Name.y = 15;
-      p2Container.addChild(batsman1Name);
+      batsman1Name.x = 0;
+      batsman1Name.y = 0;
+      batsman1Container.addChild(batsman1Name);
+      p2Container.addChild(batsman1Container);
       dynamicFieldsRef.current.batsman1Name = batsman1Name;
 
-      const b1Striker = new PIXI.Graphics();
-      b1Striker.fill({ color: 0xffffff });
-      b1Striker.moveTo(0, 0);
-      b1Striker.lineTo(10, 5);
-      b1Striker.lineTo(0, 10);
-      b1Striker.closePath();
-      b1Striker.fill();
-      b1Striker.x = 466;
-      b1Striker.y = 21;
+      const b1Striker = new PIXI.Text({
+        text: ">",
+        style: new PIXI.TextStyle({
+          fontFamily: "Rajdhani",
+          fontSize: 18,
+          fill: 0xffffff,
+          fontWeight: "900",
+        }),
+      });
+      b1Striker.x = 566;
+      b1Striker.y = 13;
       b1Striker.visible = false;
       p2Container.addChild(b1Striker);
       dynamicFieldsRef.current.batsman1StrikerIndicator = b1Striker;
@@ -494,7 +768,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           letterSpacing: 0.5,
         }),
       });
-      batsman1Runs.x = 735;
+      batsman1Runs.x = 980;
       batsman1Runs.y = 12;
       p2Container.addChild(batsman1Runs);
       dynamicFieldsRef.current.batsman1Runs = batsman1Runs;
@@ -508,10 +782,21 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           fill: 0x94a3b8,
         }),
       });
-      batsman1Balls.x = 770;
+      batsman1Balls.x = 1030;
       batsman1Balls.y = 16;
       p2Container.addChild(batsman1Balls);
       dynamicFieldsRef.current.batsman1Balls = batsman1Balls;
+
+      const batsman2Container = new PIXI.Container();
+      batsman2Container.x = 590;
+      batsman2Container.y = 48;
+      
+      const batsman2Mask = new PIXI.Graphics();
+      batsman2Mask.fill({ color: 0xffffff });
+      batsman2Mask.rect(0, 0, 360, 25);
+      batsman2Mask.fill();
+      batsman2Container.addChild(batsman2Mask);
+      batsman2Container.mask = batsman2Mask;
 
       const batsman2Name = new PIXI.Text({
         text: "",
@@ -522,20 +807,23 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           fill: 0xa1a1aa,
         }),
       });
-      batsman2Name.x = 485;
-      batsman2Name.y = 48;
-      p2Container.addChild(batsman2Name);
+      batsman2Name.x = 0;
+      batsman2Name.y = 0;
+      batsman2Container.addChild(batsman2Name);
+      p2Container.addChild(batsman2Container);
       dynamicFieldsRef.current.batsman2Name = batsman2Name;
 
-      const b2Striker = new PIXI.Graphics();
-      b2Striker.fill({ color: 0xffffff });
-      b2Striker.moveTo(0, 0);
-      b2Striker.lineTo(10, 5);
-      b2Striker.lineTo(0, 10);
-      b2Striker.closePath();
-      b2Striker.fill();
-      b2Striker.x = 466;
-      b2Striker.y = 54;
+      const b2Striker = new PIXI.Text({
+        text: ">",
+        style: new PIXI.TextStyle({
+          fontFamily: "Rajdhani",
+          fontSize: 18,
+          fill: 0xffffff,
+          fontWeight: "900",
+        }),
+      });
+      b2Striker.x = 566;
+      b2Striker.y = 44;
       b2Striker.visible = false;
       p2Container.addChild(b2Striker);
       dynamicFieldsRef.current.batsman2StrikerIndicator = b2Striker;
@@ -550,7 +838,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           letterSpacing: 0.5,
         }),
       });
-      batsman2Runs.x = 735;
+      batsman2Runs.x = 980;
       batsman2Runs.y = 45;
       p2Container.addChild(batsman2Runs);
       dynamicFieldsRef.current.batsman2Runs = batsman2Runs;
@@ -564,12 +852,12 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           fill: 0x94a3b8,
         }),
       });
-      batsman2Balls.x = 770;
+      batsman2Balls.x = 1030;
       batsman2Balls.y = 49;
       p2Container.addChild(batsman2Balls);
       dynamicFieldsRef.current.batsman2Balls = batsman2Balls;
 
-      // Panel 3: Projection metrics and titles
+      // Panel 3: Projection metrics and titles (Stretched)
       const infoTitleText = new PIXI.Text({
         text: "",
         style: new PIXI.TextStyle({
@@ -581,7 +869,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           align: "center",
         }),
       });
-      infoTitleText.x = 903; 
+      infoTitleText.x = 1180; 
       infoTitleText.y = 15;
       infoTitleText.anchor.set(0.5, 0);
       p3Container.addChild(infoTitleText);
@@ -597,7 +885,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           align: "center",
         }),
       });
-      infoValueText.x = 903;
+      infoValueText.x = 1180;
       infoValueText.y = 35;
       infoValueText.anchor.set(0.5, 0);
       p3Container.addChild(infoValueText);
@@ -613,13 +901,24 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           align: "center",
         }),
       });
-      infoValueLabelSub.x = 903;
+      infoValueLabelSub.x = 1180;
       infoValueLabelSub.y = 66;
       infoValueLabelSub.anchor.set(0.5, 0);
       p3Container.addChild(infoValueLabelSub);
       dynamicFieldsRef.current.infoValueLabelSub = infoValueLabelSub;
 
-      // Panel 4: Case A (Bowling & balls outcome display)
+      // Panel 4: Case A (Bowling & balls outcome display with Scrolling Marquees - Stretched)
+      const bowlerNameContainer = new PIXI.Container();
+      bowlerNameContainer.x = 1300;
+      bowlerNameContainer.y = 15;
+      
+      const bowlerNameMask = new PIXI.Graphics();
+      bowlerNameMask.fill({ color: 0xffffff });
+      bowlerNameMask.rect(0, 0, 240, 25);
+      bowlerNameMask.fill();
+      bowlerNameContainer.addChild(bowlerNameMask);
+      bowlerNameContainer.mask = bowlerNameMask;
+
       const bowlerName = new PIXI.Text({
         text: "",
         style: new PIXI.TextStyle({
@@ -630,9 +929,10 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           align: "left",
         }),
       });
-      bowlerName.x = 1006;
-      bowlerName.y = 15;
-      p4BowlerContainer.addChild(bowlerName);
+      bowlerName.x = 0;
+      bowlerName.y = 0;
+      bowlerNameContainer.addChild(bowlerName);
+      p4BowlerContainer.addChild(bowlerNameContainer);
       dynamicFieldsRef.current.bowlerName = bowlerName;
 
       const bowlerFigures = new PIXI.Text({
@@ -644,7 +944,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           align: "left",
         }),
       });
-      bowlerFigures.x = 1170;
+      bowlerFigures.x = 1554;
       bowlerFigures.y = 12;
       p4BowlerContainer.addChild(bowlerFigures);
       dynamicFieldsRef.current.bowlerFigures = bowlerFigures;
@@ -659,30 +959,30 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           align: "left",
         }),
       });
-      bowlerOvers.x = 1220;
+      bowlerOvers.x = 1604;
       bowlerOvers.y = 16;
       p4BowlerContainer.addChild(bowlerOvers);
       dynamicFieldsRef.current.bowlerOvers = bowlerOvers;
 
       const ballsContainer = new PIXI.Container();
-      ballsContainer.x = 1006;
+      ballsContainer.x = 1300;
       ballsContainer.y = 46;
       p4BowlerContainer.addChild(ballsContainer);
       dynamicFieldsRef.current.ballsContainer = ballsContainer;
 
-      // Panel 4: Case B (Target runs remaining dashboard)
+      // Panel 4: Case B (Target runs remaining dashboard - Stretched)
       const chaseRunsLabelText = new PIXI.Text({
-        text: "RUNS REQUIRED",
+        text: "RUNS",
         style: new PIXI.TextStyle({
           fontFamily: "Rajdhani",
-          fontSize: 11,
+          fontSize: 13,
           fontWeight: "800",
           fill: 0xffffff,
           letterSpacing: 1.2,
           align: "center",
         }),
       });
-      chaseRunsLabelText.x = 1060;
+      chaseRunsLabelText.x = 1372;
       chaseRunsLabelText.y = 16;
       chaseRunsLabelText.anchor.set(0.5, 0);
       p4ChaseContainer.addChild(chaseRunsLabelText);
@@ -697,31 +997,30 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           align: "center",
         }),
       });
-      chaseRunsValueText.x = 1060;
+      chaseRunsValueText.x = 1372;
       chaseRunsValueText.y = 35;
       chaseRunsValueText.anchor.set(0.5, 0);
       p4ChaseContainer.addChild(chaseRunsValueText);
       dynamicFieldsRef.current.chaseRunsValueText = chaseRunsValueText;
 
       const dividerLine = new PIXI.Graphics();
+      dividerLine.moveTo(1465, 12);
+      dividerLine.lineTo(1465, 73);
       dividerLine.stroke({ color: 0xffffff, width: 1, alignment: 0.5, alpha: 0.25 });
-      dividerLine.moveTo(1123, 12);
-      dividerLine.lineTo(1123, 73);
-      dividerLine.stroke();
       p4ChaseContainer.addChild(dividerLine);
 
       const chaseBallsLabelText = new PIXI.Text({
-        text: "BALLS LEFT",
+        text: "BALLS",
         style: new PIXI.TextStyle({
           fontFamily: "Rajdhani",
-          fontSize: 11,
+          fontSize: 13,
           fontWeight: "800",
           fill: 0xffffff,
           letterSpacing: 1.2,
           align: "center",
         }),
       });
-      chaseBallsLabelText.x = 1185;
+      chaseBallsLabelText.x = 1558;
       chaseBallsLabelText.y = 16;
       chaseBallsLabelText.anchor.set(0.5, 0);
       p4ChaseContainer.addChild(chaseBallsLabelText);
@@ -736,44 +1035,55 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           align: "center",
         }),
       });
-      chaseBallsValueText.x = 1185;
+      chaseBallsValueText.x = 1558;
       chaseBallsValueText.y = 35;
       chaseBallsValueText.anchor.set(0.5, 0);
       p4ChaseContainer.addChild(chaseBallsValueText);
       dynamicFieldsRef.current.chaseBallsValueText = chaseBallsValueText;
 
-      // Panel 5: Bowling/Opponent team stacked block
+      // Panel 5: Bowling/Opponent team stacked block (with Scrolling Marquee - Stretched)
+      const opponentBrandContainer = new PIXI.Container();
+      opponentBrandContainer.x = 1650;
+      opponentBrandContainer.y = 12;
+      
+      const opponentBrandMask = new PIXI.Graphics();
+      opponentBrandMask.fill({ color: 0xffffff });
+      opponentBrandMask.rect(0, 0, 178, 40);
+      opponentBrandMask.fill();
+      opponentBrandContainer.addChild(opponentBrandMask);
+      opponentBrandContainer.mask = opponentBrandMask;
+
       const opponentBrandText1 = new PIXI.Text({
         text: "",
         style: new PIXI.TextStyle({
           fontFamily: "Rajdhani",
-          fontSize: 15,
+          fontSize: 26,
           fontWeight: "800",
           fill: 0xffffff,
-          align: "center",
+          align: "right",
           letterSpacing: 0.5,
         }),
       });
-      opponentBrandText1.x = 1343; // mid-point
-      opponentBrandText1.y = 22;
-      opponentBrandText1.anchor.set(0.5, 0);
-      p5Container.addChild(opponentBrandText1);
+      opponentBrandText1.x = 0;
+      opponentBrandText1.y = 0;
+      opponentBrandContainer.addChild(opponentBrandText1);
+      p5Container.addChild(opponentBrandContainer);
       dynamicFieldsRef.current.opponentBrandText1 = opponentBrandText1;
 
       const opponentBrandText2 = new PIXI.Text({
         text: "",
         style: new PIXI.TextStyle({
           fontFamily: "Rajdhani",
-          fontSize: 15,
+          fontSize: 13,
           fontWeight: "800",
-          fill: 0xffffff,
-          align: "center",
+          fill: 0x94a3b8, // Silver-gray
+          align: "right",
           letterSpacing: 0.5,
         }),
       });
-      opponentBrandText2.x = 1343;
-      opponentBrandText2.y = 44;
-      opponentBrandText2.anchor.set(0.5, 0);
+      opponentBrandText2.x = 1828; // Perfect symmetric offset from right circular logo
+      opponentBrandText2.y = 48;
+      opponentBrandText2.anchor.set(1, 0); // Right-anchored
       p5Container.addChild(opponentBrandText2);
       dynamicFieldsRef.current.opponentBrandText2 = opponentBrandText2;
 
@@ -813,6 +1123,27 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
 
     return () => {
       isDestroyed = true;
+      
+      // Kill all active GSAP marquees to avoid memory leaks
+      const fields = dynamicFieldsRef.current;
+      if (fields) {
+        const marqueeFields = [
+          fields.teamNameText,
+          fields.opponentBrandText1,
+          fields.tournamentText,
+          fields.bowlerName,
+          fields.batsman1Name,
+          fields.batsman2Name
+        ];
+        marqueeFields.forEach(field => {
+          if (field && (field as any)._marqueeTween) {
+            try {
+              (field as any)._marqueeTween.kill();
+            } catch (e) {}
+          }
+        });
+      }
+
       if (app) {
         try {
           app.destroy(true, { children: true });
@@ -877,34 +1208,28 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
 
     // 1. Redraw glowing neon bars live
     if (fields.glowBar1) {
-      drawGlowBarLive(fields.glowBar1, 983, 973, 85, [0xffffff, glowNum]);
+      drawGlowBarLive(fields.glowBar1, 1280, 85, [0xffffff, glowNum]);
     }
     if (fields.glowBar2) {
-      drawGlowBarLive(fields.glowBar2, 1263, 1253, 85, [0xffffff, glowNum]);
+      drawGlowBarLive(fields.glowBar2, 1650, 85, [0xffffff, glowNum]);
     }
 
     // 2. Refresh Edge Highlight stripe on far-left
     if (fields.edgeHighlight) {
       fields.edgeHighlight.clear();
       fields.edgeHighlight.fill({ color: primNum });
-      fields.edgeHighlight.moveTo(0, 0);
-      fields.edgeHighlight.lineTo(6, 0);
-      fields.edgeHighlight.lineTo(6, 85);
-      fields.edgeHighlight.lineTo(0, 85);
-      fields.edgeHighlight.closePath();
+      fields.edgeHighlight.rect(0, 0, 6, 85);
       fields.edgeHighlight.fill();
     }
 
-    // 3. Generate new gradient step textures
-    const nasirBatTexture = createGradientTexture([primaryColor, blendHexColors(primaryColor, "#000000", 0.5), "#070b15"], 450, 85);
-    const falakBatTexture = createGradientTexture(["#1e293b", "#0f172a", "#030408"], 450, 85);
-    const batsmanTexture = createGradientTexture(["#070d1a", "#03050b"], 390, 85);
-    const darkInfoTexture = createGradientTexture(["#070b14", "#020306"], 160, 85);
-    const purpleInfoTexture = createGradientTexture([secondaryColor, blendHexColors(secondaryColor, "#000000", 0.5), "#0a0515"], 160, 85);
-    const bowlerTexture = createGradientTexture(["#070b14", "#020306"], 280, 85);
-    const purpleChaseTexture = createGradientTexture([secondaryColor, blendHexColors(secondaryColor, "#000000", 0.5), "#0a0515"], 280, 85);
-    const falakBrandTexture = createGradientTexture(["#1e293b", "#0f172a", "#030408"], 170, 85);
-    const nasirBrandTexture = createGradientTexture([secondaryColor, blendHexColors(secondaryColor, "#000000", 0.5), "#0a0515"], 170, 85);
+    // 3. Generate new gradient step textures with premium broadcast look!
+    const battingTexture = createGradientTexture([primaryColor, blendHexColors(primaryColor, "#000000", 0.55), "#070b15"], 1080, 85);
+    const batsmanTexture = createGradientTexture(["#070d1a", "#03050b"], 530, 85);
+    const darkInfoTexture = createGradientTexture(["#070b14", "#020306"], 200, 85);
+    const purpleInfoTexture = createGradientTexture([secondaryColor, blendHexColors(secondaryColor, "#000000", 0.55), "#0a0515"], 200, 85);
+    const bowlerTexture = createGradientTexture(["#070b14", "#020306"], 370, 85);
+    const purpleChaseTexture = createGradientTexture(["#0a0515", blendHexColors(secondaryColor, "#000000", 0.55), secondaryColor], 370, 85); // reversed gradient!
+    const bowlingTexture = createGradientTexture(["#0a0515", blendHexColors(secondaryColor, "#000000", 0.55), secondaryColor], 640, 85); // reversed gradient!
 
     const assignTex = (sprite: PIXI.Sprite | undefined, tex: PIXI.Texture) => {
       if (!sprite) return;
@@ -919,38 +1244,51 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       }
     };
 
-    assignTex(fields.p1NasirBgSprite, nasirBatTexture);
-    assignTex(fields.p1FalakBgSprite, falakBatTexture);
+    assignTex(fields.p1NasirBgSprite, battingTexture);
+    assignTex(fields.p1FalakBgSprite, battingTexture); // Both sprites get dynamic batting jersey color!
     assignTex(fields.p2BgSprite, batsmanTexture);
     assignTex(fields.p3SlateBgSprite, darkInfoTexture);
     assignTex(fields.p3PurpleBgSprite, purpleInfoTexture);
     assignTex(fields.p4BowlerBgSprite, bowlerTexture);
     assignTex(fields.p4ChaseBgSprite, purpleChaseTexture);
-    assignTex(fields.p5FalakBgSprite, falakBrandTexture);
-    assignTex(fields.p5NasirBgSprite, nasirBrandTexture);
+    assignTex(fields.p5FalakBgSprite, bowlingTexture); // Both sprites get dynamic bowling jersey color!
+    assignTex(fields.p5NasirBgSprite, bowlingTexture);
 
-    // 4. Redraw Crisp Geometrical slanted borders
-    const redrawBorder = (border: PIXI.Graphics | undefined, xTopStart: number, xTopEnd: number, xBottomStart: number, xBottomEnd: number, color: number, strokeWidth: number = 1.5) => {
+    // 4. Redraw Crisp Geometrical rectangular borders (Disabled for seamless layout)
+    const redrawBorder = (border: PIXI.Graphics | undefined, xStart: number, xEnd: number, color: number, strokeWidth: number = 1.5) => {
       if (!border) return;
       border.clear();
-      border.stroke({ color, width: strokeWidth, alignment: 1 });
-      border.moveTo(xTopStart, 0);
-      border.lineTo(xTopEnd, 0);
-      border.lineTo(xBottomEnd, 85);
-      border.lineTo(xBottomStart, 85);
-      border.closePath();
-      border.stroke();
+      // Draw nothing to prevent overlapping individual borders
     };
 
-    redrawBorder(fields.p1NasirBgBorder, 0, 440, 0, 430, primNum, 2);
-    redrawBorder(fields.p1FalakBgBorder, 0, 440, 0, 430, 0x2d3748, 2);
-    redrawBorder(fields.p2BgBorder, 446, 820, 436, 810, blendStringToNumber(primaryColor, 0x1e3a8a, 0.45), 1.5);
-    redrawBorder(fields.p3SlateBgBorder, 826, 980, 816, 970, 0x334155, 1.5);
-    redrawBorder(fields.p3PurpleBgBorder, 826, 980, 816, 970, secNum, 2);
-    redrawBorder(fields.p4BowlerBgBorder, 986, 1260, 976, 1250, 0x334155, 1.5);
-    redrawBorder(fields.p4ChaseBgBorder, 986, 1260, 976, 1250, secNum, 2);
-    redrawBorder(fields.p5FalakBgBorder, 1266, 1420, 1256, 1420, 0x334155, 1.5);
-    redrawBorder(fields.p5NasirBgBorder, 1266, 1420, 1256, 1420, secNum, 2);
+    redrawBorder(fields.p1NasirBgBorder, 0, 1080, primNum, 2);
+    redrawBorder(fields.p1FalakBgBorder, 0, 1080, primNum, 2); // Dynamic border!
+    redrawBorder(fields.p2BgBorder, 550, 1080, blendStringToNumber(primaryColor, 0x1e3a8a, 0.45), 1.5);
+    redrawBorder(fields.p3SlateBgBorder, 1080, 1280, 0x334155, 1.5);
+    redrawBorder(fields.p3PurpleBgBorder, 1080, 1280, secNum, 2);
+    redrawBorder(fields.p4BowlerBgBorder, 1280, 1650, 0x334155, 1.5);
+    redrawBorder(fields.p4ChaseBgBorder, 1280, 1650, secNum, 2);
+    redrawBorder(fields.p5FalakBgBorder, 1280, 1920, secNum, 2); // Dynamic border!
+    redrawBorder(fields.p5NasirBgBorder, 1280, 1920, secNum, 2);
+
+    // 4b. Draw Unified Outer Border and Separators
+    if (fields.unifiedBorder) {
+      fields.unifiedBorder.clear();
+      
+      // Draw outer border (1.2px gold/amber outline with 0.35 opacity)
+      fields.unifiedBorder.stroke({ color: 0xfbbf24, width: 1.2, alpha: 0.35 });
+      fields.unifiedBorder.rect(0, 0, 1920, 85);
+      fields.unifiedBorder.stroke();
+      
+      // Draw thin vertical separator lines (1px white divider with 0.18 opacity)
+      fields.unifiedBorder.stroke({ color: 0xffffff, width: 1.0, alpha: 0.18 });
+      const dividers = [550, 1080, 1280, 1650];
+      dividers.forEach(x => {
+        fields.unifiedBorder.moveTo(x, 0);
+        fields.unifiedBorder.lineTo(x, 85);
+      });
+      fields.unifiedBorder.stroke();
+    }
 
     // 5. Update font text style colors
     const applyTextFill = (text: PIXI.Text | undefined, colorNum: number) => {
@@ -1001,9 +1339,9 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     const isCombinedLayout = isChaseActive && secondInningsLayout === "combined";
     const showBowlerState = !isChaseActive || (isChaseActive && secondInningsLayout === "normal");
 
-    // Toggle Panel 4 graphics backgrounds (Bowler details vs chase statistics)
-    if (fields.p4BowlerBg) fields.p4BowlerBg.visible = showBowlerState;
-    if (fields.p4ChaseBg) fields.p4ChaseBg.visible = !showBowlerState;
+    // Toggle Panel 4 graphics backgrounds (Disabled: combined Section 4-5 background handles this seamlessly)
+    // if (fields.p4BowlerBg) fields.p4BowlerBg.visible = showBowlerState;
+    // if (fields.p4ChaseBg) fields.p4ChaseBg.visible = !showBowlerState;
 
     if (fields.p5FalakBg) fields.p5FalakBg.visible = !isNasirBowling;
     if (fields.p5NasirBg) fields.p5NasirBg.visible = isNasirBowling;
@@ -1017,17 +1355,191 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     if (fields.glowBar2) fields.glowBar2.visible = isCombinedLayout;
 
     // ────────────────────────────────────────────────────────
-    // PANEL 1 UPDATES (Batting Team, Score, Overs, Ticker)
+    // DYNAMIC circular team emblems and sunburst radiating gold rays
     // ────────────────────────────────────────────────────────
+    const primNum = hexStringToNumber(s.primaryColor || "#1d4ed8", 0x1d4ed8);
+    const secNum = hexStringToNumber(s.secondaryColor || "#dc2626", 0xdc2626);
+
+    // Left team logo circle and rays
+    if (fields.leftLogoSunburst && fields.leftLogoCircle && fields.leftLogoText) {
+      const cx = 45;
+      const cy = 42.5;
+      const r = 26;
+
+      // 1. Tight gold cogwheel rim (36 tick ridges)
+      // AI Sunburst tinting (matches primary team color for aesthetic blend)
+      if (fields.leftLogoSunburst) {
+        fields.leftLogoSunburst.tint = primNum;
+      }
+
+      // 2. Filled circle and golden ring border
+      fields.leftLogoCircle.clear();
+      fields.leftLogoCircle.fill({ color: primNum });
+      fields.leftLogoCircle.drawCircle(cx, cy, r);
+      fields.leftLogoCircle.fill();
+      fields.leftLogoCircle.stroke({ color: 0xfbbf24, width: 2, alignment: 0.5 });
+      fields.leftLogoCircle.drawCircle(cx, cy, r);
+      fields.leftLogoCircle.stroke();
+
+      // 3. Batting team initial text
+      const battingShortName = s.currentInnings === 1 ? s.config.team1ShortName : s.config.team2ShortName;
+      const battingInitials = getTeamInitials(battingTeamName, battingShortName);
+      fields.leftLogoText.text = battingInitials;
+      
+      // Auto-scale font size depending on length
+      if (battingInitials.length > 3) {
+        fields.leftLogoText.style.fontSize = 12;
+      } else if (battingInitials.length === 3) {
+        fields.leftLogoText.style.fontSize = 15;
+      } else if (battingInitials.length === 2) {
+        fields.leftLogoText.style.fontSize = 19;
+      } else {
+        fields.leftLogoText.style.fontSize = 26;
+      }
+      
+      fields.leftLogoText.x = cx;
+      fields.leftLogoText.y = cy;
+    }
+
+    // Right team logo circle and rays
+    if (fields.rightLogoSunburst && fields.rightLogoCircle && fields.rightLogoText) {
+      const cx = 1875;
+      const cy = 42.5;
+      const r = 26;
+
+      // 1. Tight gold cogwheel rim (36 tick ridges)
+      // AI Sunburst tinting (matches secondary team color)
+      if (fields.rightLogoSunburst) {
+        fields.rightLogoSunburst.tint = secNum;
+      }
+
+      // 2. Filled circle and golden ring border
+      fields.rightLogoCircle.clear();
+      fields.rightLogoCircle.fill({ color: secNum });
+      fields.rightLogoCircle.drawCircle(cx, cy, r);
+      fields.rightLogoCircle.fill();
+      fields.rightLogoCircle.stroke({ color: 0xfbbf24, width: 2, alignment: 0.5 });
+      fields.rightLogoCircle.drawCircle(cx, cy, r);
+      fields.rightLogoCircle.stroke();
+
+      // 3. Bowling team initial text
+      const bowlingShortName = s.currentInnings === 1 ? s.config.team2ShortName : s.config.team1ShortName;
+      const bowlingInitials = getTeamInitials(bowlingTeamName, bowlingShortName);
+      fields.rightLogoText.text = bowlingInitials;
+      
+      // Auto-scale font size depending on length
+      if (bowlingInitials.length > 3) {
+        fields.rightLogoText.style.fontSize = 12;
+      } else if (bowlingInitials.length === 3) {
+        fields.rightLogoText.style.fontSize = 15;
+      } else if (bowlingInitials.length === 2) {
+        fields.rightLogoText.style.fontSize = 19;
+      } else {
+        fields.rightLogoText.style.fontSize = 26;
+      }
+      
+      fields.rightLogoText.x = cx;
+      fields.rightLogoText.y = cy;
+    }
+
+    // ────────────────────────────────────────────────────────
+    // PANEL 1 UPDATES (Batting Team, Score, Overs, Ticker - Stacked Grid)
+    // ────────────────────────────────────────────────────────
+    const battingShortName = s.currentInnings === 1 ? s.config.team1ShortName : s.config.team2ShortName;
+    const bowlingShortName = s.currentInnings === 1 ? s.config.team2ShortName : s.config.team1ShortName;
+    const battingAbbrev = (battingShortName || getTeamInitials(battingTeamName)).toUpperCase();
+    const bowlingAbbrev = (bowlingShortName || getTeamInitials(bowlingTeamName)).toUpperCase();
+
+    // Smart display names: use short names if configured, otherwise use full names to match screenshots!
+    const battingDisplayName = (battingShortName && battingShortName !== "TMA" && battingShortName !== "TMB" && battingShortName.trim().length > 0)
+      ? battingShortName.toUpperCase()
+      : battingTeamName.toUpperCase();
+
+    const bowlingDisplayName = (bowlingShortName && bowlingShortName !== "TMA" && bowlingShortName !== "TMB" && bowlingShortName.trim().length > 0)
+      ? bowlingShortName.toUpperCase()
+      : bowlingTeamName.toUpperCase();
+
     if (fields.teamNameText) {
-      fields.teamNameText.text = battingTeamName.toUpperCase();
+      fields.teamNameText.text = battingDisplayName;
+      let fontSize = 26;
+      if (battingDisplayName.length > 12) {
+        fontSize = 20;
+      } else if (battingDisplayName.length > 8) {
+        fontSize = 22;
+      }
+      fields.teamNameText.style.fontSize = fontSize;
+      updateTextMarquee(fields.teamNameText, 198, "left");
     }
+
+    if (fields.vsOpponentText) {
+      fields.vsOpponentText.text = `v ${bowlingAbbrev}`;
+    }
+    
+    const scoreX = 300; // Fixed consistent score X coordinate for widescreen 1920px screen width
     if (fields.scoreText) {
+      fields.scoreText.x = scoreX;
       fields.scoreText.text = `${s.runs}-${s.wickets}`;
+      
+      // Dynamic alignment of Powerplay badge and overs text to prevent overlaps
+      const scoreRight = fields.scoreText.x + fields.scoreText.width;
+      
+      if (fields.powerplayBadge && fields.powerplayText) {
+        fields.powerplayBadge.clear();
+        if (s.powerplay) {
+          const badgeX = scoreRight + 8;
+          const badgeY = 16;
+          const badgeSize = 20;
+          
+          fields.powerplayBadge.roundRect(badgeX, badgeY, badgeSize, badgeSize, 4);
+          fields.powerplayBadge.fill({ color: 0xfbbf24 });
+          fields.powerplayBadge.stroke({ color: 0xd97706, width: 1 });
+          fields.powerplayBadge.visible = true;
+          
+          fields.powerplayText.x = badgeX + badgeSize / 2;
+          fields.powerplayText.y = badgeY + badgeSize / 2;
+          fields.powerplayText.visible = true;
+          
+          if (fields.oversText) {
+            fields.oversText.text = calculateOvers(s.balls);
+            fields.oversText.x = badgeX + badgeSize + 8;
+            fields.oversText.y = 15;
+          }
+        } else {
+          fields.powerplayBadge.visible = false;
+          fields.powerplayText.visible = false;
+          
+          if (fields.oversText) {
+            fields.oversText.text = calculateOvers(s.balls);
+            fields.oversText.x = scoreRight + 8;
+            fields.oversText.y = 15;
+          }
+        }
+      }
+    } else {
+      if (fields.oversText) {
+        fields.oversText.text = calculateOvers(s.balls);
+      }
     }
-    if (fields.oversText) {
-      fields.oversText.text = `${calculateOvers(s.balls)} (${s.config.totalOvers})`;
+
+    if (fields.tournamentText) {
+      if (s.superOver) {
+        fields.tournamentText.text = "SUPER OVER SCENARIO";
+      } else if (s.runsNeeded !== null && s.runsNeeded <= 0) {
+        fields.tournamentText.text = `${s.runs >= (s.target || 0) ? battingAbbrev : bowlingAbbrev} WON!`;
+      } else if (isChaseActive) {
+        const runsNeeded = s.target !== null ? s.target - s.runs : 0;
+        const ballsRemaining = Math.max(0, (s.config.totalOvers * 6) - s.balls);
+        fields.tournamentText.text = `NEED ${runsNeeded} RUNS FROM ${ballsRemaining} BALLS`;
+      } else {
+        // First Innings - display toss decision (FALAK XI DARAVE DECIDED TO BOWL)
+        const tossText = `${s.config.tossWinner.toUpperCase()} DECIDED TO ${s.config.tossDecision.toUpperCase() === "bat" ? "BAT" : "BOWL"}`;
+        fields.tournamentText.text = tossText;
+      }
+      
+      fields.tournamentText.style.fontSize = 13;
+      updateTextMarquee(fields.tournamentText, 240, "left");
     }
+    
     if (fields.tickerText) {
       fields.tickerText.text = getTickerText(s);
     }
@@ -1038,6 +1550,8 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     if (fields.batsman1Name) {
       fields.batsman1Name.text = s.batsman1.name.toUpperCase();
       fields.batsman1Name.style.fill = s.batsman1.isStriker ? 0xffffff : 0xa1a1aa;
+      fields.batsman1Name.style.fontSize = 17;
+      updateTextMarquee(fields.batsman1Name, 360, "left");
     }
     if (fields.batsman1Runs) {
       fields.batsman1Runs.text = String(s.batsman1.runs);
@@ -1054,6 +1568,8 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     if (fields.batsman2Name) {
       fields.batsman2Name.text = s.batsman2.name.toUpperCase();
       fields.batsman2Name.style.fill = s.batsman2.isStriker ? 0xffffff : 0xa1a1aa;
+      fields.batsman2Name.style.fontSize = 17;
+      updateTextMarquee(fields.batsman2Name, 360, "left");
     }
     if (fields.batsman2Runs) {
       fields.batsman2Runs.text = String(s.batsman2.runs);
@@ -1076,32 +1592,43 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     const rrr = remainingBalls > 0 ? (runsToTarget / remainingBalls) * 6 : 0;
 
     if (!isChaseActive) {
-      // First Innings dynamic configurations
-      const displayType = s.firstInningsDisplay || "projected";
+      // First Innings dynamic configurations (Standard colors: White titles, Gold values)
+      if (fields.infoTitleText) fields.infoTitleText.style.fill = 0xffffff;
+      if (fields.infoValueText) fields.infoValueText.style.fill = hexStringToNumber(s.accentTextColor, 0xfbbf24);
+      if (fields.infoValueLabelSub) fields.infoValueLabelSub.style.fill = 0x94a3b8;
+
+      const displayType = s.infoPanelTheme || "projected";
+      const crr = s.balls > 0 ? (s.runs / s.balls) * 6 : 0;
       
       if (displayType === "crr") {
-        const crr = s.balls > 0 ? (s.runs / s.balls) * 6 : 0;
-        
-        if (fields.infoTitleText) fields.infoTitleText.text = "RUN RATE";
+        if (fields.infoTitleText) fields.infoTitleText.text = "RUN-RATE";
         if (fields.infoValueText) fields.infoValueText.text = crr.toFixed(2);
-        if (fields.infoValueLabelSub) fields.infoValueLabelSub.text = "CURRENT CRR";
+        if (fields.infoValueLabelSub) fields.infoValueLabelSub.text = "CURRENT";
       } 
       else if (displayType === "partnership") {
         if (fields.infoTitleText) fields.infoTitleText.text = "PARTNERSHIP";
         if (fields.infoValueText) fields.infoValueText.text = String(s.partnershipRuns);
         if (fields.infoValueLabelSub) fields.infoValueLabelSub.text = `${s.partnershipBalls} BALLS`;
       } 
+      else if (displayType === "toss") {
+        if (fields.infoTitleText) fields.infoTitleText.text = "TOSS";
+        if (fields.infoValueText) fields.infoValueText.text = s.config.tossDecision.toUpperCase() === "BAT" ? "BAT" : "BOWL";
+        if (fields.infoValueLabelSub) fields.infoValueLabelSub.text = s.config.tossWinner.toUpperCase();
+      }
       else {
-        // Fallback or explicit projected selection
-        const crr = s.balls > 0 ? (s.runs / s.balls) * 6 : 0;
+        // "projected"
         const proj = s.balls > 0 ? Math.round(crr * s.config.totalOvers) : 0;
         
         if (fields.infoTitleText) fields.infoTitleText.text = "PROJECTED";
         if (fields.infoValueText) fields.infoValueText.text = proj > 0 ? `${proj}` : "-";
-        if (fields.infoValueLabelSub) fields.infoValueLabelSub.text = `${s.config.totalOvers} OVERS`;
+        if (fields.infoValueLabelSub) fields.infoValueLabelSub.text = `SCORE`;
       }
     } else {
-      // Second Innings active layouts
+      // Second Innings active layouts (Chase White Panel colors: High-contrast Black titles/values, dark slate RRR)
+      if (fields.infoTitleText) fields.infoTitleText.style.fill = 0x000000;
+      if (fields.infoValueText) fields.infoValueText.style.fill = 0x000000;
+      if (fields.infoValueLabelSub) fields.infoValueLabelSub.style.fill = 0x475569;
+
       if (secondInningsLayout === "normal") {
         // Option 1: Displays TARGET score in middle panel, RRR below
         if (fields.infoTitleText) fields.infoTitleText.text = "TARGET";
@@ -1122,6 +1649,8 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       // Renders active bowler figures and timeline (normal mode or 1st Innings)
       if (fields.bowlerName) {
         fields.bowlerName.text = s.bowler.name.toUpperCase();
+        fields.bowlerName.style.fontSize = 17;
+        updateTextMarquee(fields.bowlerName, 240, "left");
       }
       if (fields.bowlerFigures) {
         fields.bowlerFigures.text = `${s.bowler.wickets}-${s.bowler.runs}`;
@@ -1135,7 +1664,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
         fields.ballsContainer.removeChildren().forEach((child) => child.destroy());
 
         const maxRecentBalls = 6;
-        const bArray = s.thisOver.slice(-maxRecentBalls);
+        const bArray = s.recentBalls && s.recentBalls.length > 0 ? s.recentBalls : s.thisOver.slice(-maxRecentBalls);
         let cumulativeX = 0;
 
         bArray.forEach((ballSymbol) => {
@@ -1150,22 +1679,20 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           let bgHex = 0xffffff;
           let borderHex = 0xd1d5db;
           let textHex = 0x0f172a;
+          let isDotBall = ballSymbol === "•" || ballSymbol === "0" || ballSymbol.toLowerCase() === "dot";
 
-          if (ballSymbol === "6") {
+          if (ballSymbol === "6" || ballSymbol === "4") {
             bgHex = hexStringToNumber(s.accentTextColor, 0xfbbf24); 
             borderHex = blendStringToNumber(s.accentTextColor || "#fbbf24", 0xd97706, 0.4);
-          } else if (ballSymbol === "4") {
-            bgHex = hexStringToNumber(s.primaryColor, 0x1d4ed8); 
-            borderHex = blendStringToNumber(s.primaryColor || "#1d4ed8", 0x1e3a8a, 0.5);
-            textHex = 0xffffff;
+            textHex = 0x0f172a; // High contrast dark text
           } else if (ballSymbol === "W" || ballSymbol.toUpperCase().includes("W")) {
             bgHex = 0xef4444; 
             borderHex = 0xb91c1c;
             textHex = 0xffffff;
-          } else if (ballSymbol === "•" || ballSymbol === "0") {
-            bgHex = 0x1e293b; 
-            borderHex = 0x334155;
-            textHex = 0xffffff;
+          } else if (isDotBall) {
+            bgHex = 0xf8fafc; // White background
+            borderHex = 0xcbd5e1; // Light border
+            textHex = 0x16a34a; // Unused but kept for consistency
           } else {
             bgHex = 0xf8fafc;
             borderHex = 0xcbd5e1;
@@ -1176,20 +1703,29 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
           ballBorder.stroke({ color: borderHex, width: 1.5 });
           ballItem.addChild(ballBorder);
 
-          const bt = new PIXI.Text({
-            text: ballSymbol,
-            style: new PIXI.TextStyle({
-              fontFamily: "Rajdhani",
-              fontSize: 13,
-              fontWeight: "800",
-              fill: textHex,
-              align: "center",
-            }),
-          });
-          bt.x = cardWidth / 2;
-          bt.y = cardHeight / 2 - 1;
-          bt.anchor.set(0.5, 0.5);
-          ballItem.addChild(bt);
+          if (isDotBall) {
+            // Draw a solid green dot
+            const dotGraphics = new PIXI.Graphics();
+            dotGraphics.fill({ color: 0x16a34a });
+            dotGraphics.drawCircle(cardWidth / 2, cardHeight / 2, 4);
+            dotGraphics.fill();
+            ballItem.addChild(dotGraphics);
+          } else {
+            const bt = new PIXI.Text({
+              text: ballSymbol,
+              style: new PIXI.TextStyle({
+                fontFamily: "Rajdhani",
+                fontSize: 13,
+                fontWeight: "800",
+                fill: textHex,
+                align: "center",
+              }),
+            });
+            bt.x = cardWidth / 2;
+            bt.y = cardHeight / 2 - 1;
+            bt.anchor.set(0.5, 0.5);
+            ballItem.addChild(bt);
+          }
 
           cumulativeX += 40; 
         });
@@ -1205,17 +1741,21 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     }
 
     // ────────────────────────────────────────────────────────
-    // PANEL 5 OPPONENT BRAND NAME ACTION COMPONENT
+    // PANEL 5 OPPONENT BRAND NAME ACTION COMPONENT (Symmetric Stack)
     // ────────────────────────────────────────────────────────
     if (fields.opponentBrandText1 && fields.opponentBrandText2) {
-      const parts = bowlingTeamName.split(" ");
-      if (parts.length >= 2) {
-        fields.opponentBrandText1.text = parts.slice(0, 2).join(" ").toUpperCase();
-        fields.opponentBrandText2.text = parts.slice(2).join(" ").toUpperCase() || "TEAM";
-      } else {
-        fields.opponentBrandText1.text = bowlingTeamName.toUpperCase();
-        fields.opponentBrandText2.text = "CLUB";
+      fields.opponentBrandText1.text = bowlingDisplayName;
+      let fontSize = 26;
+      if (bowlingDisplayName.length > 12) {
+        fontSize = 20;
+      } else if (bowlingDisplayName.length > 8) {
+        fontSize = 22;
       }
+      fields.opponentBrandText1.style.fontSize = fontSize;
+
+      updateTextMarquee(fields.opponentBrandText1, 178, "right");
+
+      fields.opponentBrandText2.text = `v ${battingAbbrev}`;
     }
 
     // ────────────────────────────────────────────────────────
@@ -1229,7 +1769,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
     prevStateRef.current = JSON.parse(JSON.stringify(s));
   }
 
-  function triggerTvGraphicsWipe(type: "four" | "six" | "wicket" | "single" | "config" | "reset") {
+  function triggerTvGraphicsWipe(type: "four" | "six" | "wicket" | "single" | "config" | "reset" | "freehit" | "maiden" | "milestone") {
     const fields = dynamicFieldsRef.current;
     if (!fields || !fields.eventOverlayContainer || !fields.eventOverlayText || !fields.eventOverlayBg) return;
 
@@ -1276,7 +1816,7 @@ export default function PixiRenderer({ state }: PixiRendererProps) {
       strokeWidth = 2.5;
     }
 
-    const width = 1420;
+    const width = 1920;
     const height = 85;
     
     fields.eventOverlayBg.clear();

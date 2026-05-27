@@ -13,7 +13,7 @@ import {
 
 interface LauncherScreenProps {
   initialState: MatchState;
-  onNavigate: (screen: "controller" | "overlay") => void;
+  onNavigate: (screen: "controller" | "overlay" | "tournaments") => void;
 }
 
 export default function LauncherScreen({ initialState, onNavigate }: LauncherScreenProps) {
@@ -194,6 +194,44 @@ export default function LauncherScreen({ initialState, onNavigate }: LauncherScr
           </div>
         </div>
 
+      </div>
+
+      {/* ────────────────────────────────────────────────────────
+          TOURNAMENT HISTORY CARD
+          ──────────────────────────────────────────────────────── */}
+      <div className="max-w-5xl mx-auto w-full mb-4">
+        <div className="bg-[#161b22] border border-slate-800 hover:border-indigo-700/50 rounded-2xl p-5 transition-all shadow-xl group flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden backdrop-blur-sm">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-600/5 rounded-full blur-3xl group-hover:bg-indigo-600/10 transition-colors" />
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 group-hover:scale-105 transition-transform shrink-0">
+              <Award className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white tracking-wide uppercase">📋 Tournament History</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Browse saved matches, scorecards, and career player stats stored in MongoDB Atlas.</p>
+            </div>
+          </div>
+          <div className="flex gap-3 shrink-0">
+            <button
+              id="open-tournaments-btn"
+              type="button"
+              onClick={() => onNavigate("tournaments")}
+              className="bg-indigo-600 hover:bg-indigo-500 px-5 py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-indigo-500/10"
+            >
+              <Award className="w-4 h-4" />
+              OPEN HISTORY
+            </button>
+            <a
+              href="/tournaments"
+              target="_blank"
+              rel="noreferrer"
+              className="px-4 py-2.5 bg-slate-950 border border-slate-800 hover:bg-slate-900 hover:border-slate-700 rounded-lg text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-1.5"
+            >
+              <span>NEW TAB</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
       </div>
 
       {/* ────────────────────────────────────────────────────────

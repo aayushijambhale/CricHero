@@ -4,70 +4,51 @@
  */
 
 import { useState, useEffect } from "react";
-import { MatchState, ScreenType } from "./types";
+import { MatchState, ScreenType, createDefaultMatchState } from "./types";
 import LauncherScreen from "./components/LauncherScreen";
-import ControllerPanel from "./components/ControllerPanel";
+import UnifiedController from "./components/UnifiedController";
 import BroadcastOverlay from "./components/BroadcastOverlay";
+import TournamentDashboard from "./components/TournamentDashboard";
 
 // Beautiful production default baseline in case fetching is delayed
-const defaultInitialState: MatchState = {
-  config: {
-    team1: "FALAK XI DARAVE",
-    team2: "NASIR XI POLADPUR",
-    totalOvers: 6,
-    tossWinner: "NASIR XI POLADPUR",
-    tossDecision: "bowl",
-  },
-  runs: 54,
-  wickets: 6,
-  balls: 31, // 5.1 overs
-  currentInnings: 2,
-  target: 58,
-  batsman1: {
-    name: "SACHIN N",
-    runs: 12,
-    balls: 9,
-    isStriker: false,
-  },
-  batsman2: {
-    name: "AMIT PATIL",
-    runs: 24,
-    balls: 15,
-    isStriker: true,
-  },
-  bowler: {
-    name: "JAGAT S",
-    runs: 9,
-    wickets: 2,
-    balls: 4, // 0.4 overs
-  },
-  thisOver: ["2", "6", "•", "1"],
-  partnershipRuns: 36,
-  partnershipBalls: 24,
-  lastWicket: {
-    name: "GOURAV",
-    runs: 10,
-    balls: 5,
-    scoreAtWicket: "18-5",
-  },
-  powerplay: true,
-  superOver: false,
-  freeHit: false,
-  eventTrigger: {
-    type: "config",
-    timestamp: Date.now(),
-  },
-  primaryColor: "#1d4ed8",
-  secondaryColor: "#581c87",
-  glowColor: "#c084fc",
-  accentTextColor: "#fbbf24",
-  firstInningsDisplay: "projected",
-  secondInningsLayout: "combined",
-  panelBgColor: "#0a0a0c",
-  celebrationTheme: "neon",
-  maxSixText: "★★ MAX SIX ★★",
-  fourBoundaryText: "★ BOUNDARY FOUR ★",
+const defaultInitialState: MatchState = createDefaultMatchState();
+// Apply some custom overrides for the beautiful default view
+defaultInitialState.config.team1 = "FALAK XI DARAVE";
+defaultInitialState.config.team2 = "NASIR XI POLADPUR";
+defaultInitialState.config.tossWinner = "NASIR XI POLADPUR";
+defaultInitialState.config.tossDecision = "bowl";
+defaultInitialState.config.format = "custom";
+defaultInitialState.config.team1ShortName = "FLK";
+defaultInitialState.config.team2ShortName = "NSR";
+defaultInitialState.runs = 54;
+defaultInitialState.wickets = 6;
+defaultInitialState.balls = 31;
+defaultInitialState.currentInnings = 2;
+defaultInitialState.target = 58;
+defaultInitialState.batsman1 = {
+  ...defaultInitialState.batsman1,
+  name: "SACHIN N", runs: 12, balls: 9, isStriker: false, fours: 1, strikeRate: 133.33, dotBalls: 3
 };
+defaultInitialState.batsman2 = {
+  ...defaultInitialState.batsman2,
+  name: "AMIT PATIL", runs: 24, balls: 15, isStriker: true, fours: 3, sixes: 1, strikeRate: 160.00, dotBalls: 4
+};
+defaultInitialState.bowler = {
+  ...defaultInitialState.bowler,
+  name: "JAGAT S", runs: 9, wickets: 2, balls: 4, economy: 13.5, dots: 1
+};
+defaultInitialState.thisOver = ["2", "6", "•", "1"];
+defaultInitialState.partnershipRuns = 36;
+defaultInitialState.partnershipBalls = 24;
+defaultInitialState.lastWicket = {
+  name: "GOURAV", runs: 10, balls: 5, scoreAtWicket: "18-5"
+};
+defaultInitialState.matchPhase = "chase";
+defaultInitialState.pressureState = {
+  level: "high", score: 0.65, description: "Need 4 runs off 5 balls"
+};
+defaultInitialState.runsNeeded = 4;
+defaultInitialState.ballsRemaining = 5;
 
 export default function App() {
   const [screen, setScreen] = useState<ScreenType>("launcher");
@@ -81,6 +62,8 @@ export default function App() {
       setScreen("controller");
     } else if (path === "/overlay") {
       setScreen("overlay");
+    } else if (path === "/tournaments") {
+      setScreen("tournaments");
     } else {
       setScreen("launcher");
     }
@@ -117,6 +100,8 @@ export default function App() {
         setScreen("controller");
       } else if (path === "/overlay") {
         setScreen("overlay");
+      } else if (path === "/tournaments") {
+        setScreen("tournaments");
       } else {
         setScreen("launcher");
       }
@@ -141,9 +126,11 @@ export default function App() {
   // Dynamic router render
   switch (screen) {
     case "controller":
-      return <ControllerPanel initialState={initialData} />;
+      return <UnifiedController initialState={initialData} onNavigate={handleNavigate} />;
     case "overlay":
       return <BroadcastOverlay initialState={initialData} />;
+    case "tournaments":
+      return <TournamentDashboard onNavigate={handleNavigate} />;
     case "launcher":
     default:
       return (
